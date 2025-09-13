@@ -1,0 +1,11 @@
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+tiauth-faroe
+**/__pycache__
+**/.claude
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+.env
+main.go

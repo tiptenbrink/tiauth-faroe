@@ -1,0 +1,21 @@
+[project]
+name = "tiauth-faroe-user-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Tip ten Brink", email = "75669206+tiptenbrink@users.noreply.github.com" }
+]
+
+[tool.uv.build-backend]
+module-name = "tiauth_faroe.user_server"
+
+[build-system]
+requires = ["uv_build>=0.8.15,<0.9.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
