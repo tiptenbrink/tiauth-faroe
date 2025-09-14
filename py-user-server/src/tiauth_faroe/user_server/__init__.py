@@ -283,7 +283,7 @@ def process_request_gen(
                 "Called `.send()` with incorrect type, expected User or ActionError!"
             )
     elif action == "get_user_by_email_address":
-        email_address = validate_str_argument("user_id", action_arguments)
+        email_address = validate_str_argument("email_address", action_arguments)
         effect = GetUserByEmailAddressEffect(action_invocation_id, email_address)
         result = yield effect
         if not isinstance(result, User) and not isinstance(result, ActionError):

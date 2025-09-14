@@ -148,7 +148,6 @@ class TestCreateUser:
         assert response["values"]["user"]["password_hash_counter"] == 0
 
     def test_create_user_duplicate_email(self, db):
-        # First user
         request_body1 = make_request(
             "create_user",
             email_address="test@example.com",
@@ -177,7 +176,6 @@ class TestCreateUser:
 
 class TestGetUser:
     def test_get_user_success(self, db):
-        # Create a user first
         create_request = make_request(
             "create_user",
             email_address="test@example.com",
@@ -189,7 +187,6 @@ class TestGetUser:
         create_response = json.loads(create_result.response_json)
         user_id = create_response["values"]["user"]["id"]
 
-        # Get the user
         get_request = make_request("get_user", user_id=user_id)
         result = handle_request_sync(get_request, db)
 
@@ -211,7 +208,6 @@ class TestGetUser:
 
 class TestGetUserByEmailAddress:
     def test_get_user_by_email_success(self, db):
-        # Create a user first
         create_request = make_request(
             "create_user",
             email_address="test@example.com",
@@ -221,8 +217,7 @@ class TestGetUserByEmailAddress:
         )
         handle_request_sync(create_request, db)
 
-        # Get user by email (note: uses 'user_id' field but means email)
-        get_request = make_request("get_user_by_email_address", user_id="test@example.com")
+        get_request = make_request("get_user_by_email_address", email_address="test@example.com")
         result = handle_request_sync(get_request, db)
 
         assert result.error is None
@@ -231,7 +226,7 @@ class TestGetUserByEmailAddress:
         assert response["values"]["user"]["email_address"] == "test@example.com"
 
     def test_get_user_by_email_not_found(self, db):
-        request_body = make_request("get_user_by_email_address", user_id="nonexistent@example.com")
+        request_body = make_request("get_user_by_email_address", email_address="nonexistent@example.com")
         result = handle_request_sync(request_body, db)
 
         assert result.error is None
@@ -242,7 +237,6 @@ class TestGetUserByEmailAddress:
 
 class TestUpdateUserEmailAddress:
     def test_update_email_success(self, db):
-        # Create user
         create_request = make_request(
             "create_user",
             email_address="old@example.com",
@@ -254,7 +248,6 @@ class TestUpdateUserEmailAddress:
         create_response = json.loads(create_result.response_json)
         user_id = create_response["values"]["user"]["id"]
 
-        # Update email
         update_request = make_request(
             "update_user_email_address",
             user_id=user_id,
@@ -291,7 +284,6 @@ class TestUpdateUserEmailAddress:
 
 class TestUpdateUserPasswordHash:
     def test_update_password_success(self, db):
-        # Create user
         create_request = make_request(
             "create_user",
             email_address="test@example.com",
@@ -303,7 +295,6 @@ class TestUpdateUserPasswordHash:
         create_response = json.loads(create_result.response_json)
         user_id = create_response["values"]["user"]["id"]
 
-        # Update password
         update_request = make_request(
             "update_user_password_hash",
             user_id=user_id,
@@ -328,7 +319,6 @@ class TestUpdateUserPasswordHash:
 
 class TestIncrementUserSessionsCounter:
     def test_increment_sessions_success(self, db):
-        # Create user
         create_request = make_request(
             "create_user",
             email_address="test@example.com",
@@ -340,7 +330,6 @@ class TestIncrementUserSessionsCounter:
         create_response = json.loads(create_result.response_json)
         user_id = create_response["values"]["user"]["id"]
 
-        # Increment sessions counter
         increment_request = make_request(
             "increment_user_sessions_counter",
             user_id=user_id,
@@ -361,7 +350,6 @@ class TestIncrementUserSessionsCounter:
 
 class TestDeleteUser:
     def test_delete_user_success(self, db):
-        # Create user
         create_request = make_request(
             "create_user",
             email_address="test@example.com",
@@ -373,7 +361,6 @@ class TestDeleteUser:
         create_response = json.loads(create_result.response_json)
         user_id = create_response["values"]["user"]["id"]
 
-        # Delete user
         delete_request = make_request("delete_user", user_id=user_id)
         result = handle_request_sync(delete_request, db)
 
