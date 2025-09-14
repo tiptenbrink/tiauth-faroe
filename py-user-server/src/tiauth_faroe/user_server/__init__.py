@@ -108,27 +108,24 @@ def generate_action_invocation_id() -> str:
     return id_str
 
 
-def parse_action_request(body: str) -> tuple[str, Dict[str, Any]]:
+def parse_action_request(json_object: Any) -> tuple[str, Dict[str, Any]]:
     """
-    Parses a Faroe action invocation JSON string and returns the action name and action arguments.
+    Parses a Faroe action invocation parsed JSON object (not the body string). Since any realistic server will have
+    support for parsing the JSON body into an object, we expect the object and not the JSON string.
     """
-    try:
-        parsed = json.loads(body)
-    except json.JSONDecodeError:
-        raise ValueError("Invalid JSON")
 
-    if not isinstance(parsed, dict):
+    if not isinstance(json_object, dict):
         raise ValueError("Invalid request object")
 
-    if "action" not in parsed or not isinstance(parsed["action"], str):
+    if "action" not in json_object or not isinstance(json_object["action"], str):
         raise ValueError("Missing or invalid 'action' field")
 
-    action = parsed["action"]
+    action = json_object["action"]
 
-    if "arguments" not in parsed or not isinstance(parsed["arguments"], dict):
+    if "arguments" not in json_object or not isinstance(json_object["arguments"], dict):
         raise ValueError("Missing or invalid 'arguments' field")
 
-    action_arguments = parsed["arguments"]
+    action_arguments = json_object["arguments"]
 
     return action, action_arguments
 
@@ -256,9 +253,9 @@ def serialize_error_result(action_invocation_id: str, error_code: str) -> str:
 
 
 def process_request_gen(
-    request_body: str,
+    request_json_object: Any,
 ) -> Generator[Effect, Union[EffectResult, ActionError], ServerResult]:
-    action, action_arguments = parse_action_request(request_body)
+    action, action_arguments = parse_action_request(request_json_object)
     action_invocation_id = generate_action_invocation_id()
 
     if action == "create_user":
@@ -367,8 +364,8 @@ class AsyncServer(Protocol):
     async def execute_effect(self, effect: Effect) -> EffectResult: ...
 
 
-def handle_request_sync(body: str, server: SyncServer) -> ServerResult:
-    generator = process_request_gen(body)
+def handle_request_sync(request_json_object: Any, server: SyncServer) -> ServerResult:
+    generator = process_request_gen(request_json_object)
 
     effect = next(generator)
     result = server.execute_effect(effect)
@@ -380,8 +377,8 @@ def handle_request_sync(body: str, server: SyncServer) -> ServerResult:
     raise Exception("We do not expect any yields after send!")
 
 
-async def handle_request_async(body: str, server: AsyncServer) -> ServerResult:
-    generator = process_request_gen(body)
+async def handle_request_async(request_json_object: Any, server: AsyncServer) -> ServerResult:
+    generator = process_request_gen(request_json_object)
 
     effect = next(generator)
     result = await server.execute_effect(effect)

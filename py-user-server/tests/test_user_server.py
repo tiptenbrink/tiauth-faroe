@@ -1,3 +1,4 @@
+from typing import Any
 import pytest
 import json
 import base64
@@ -19,9 +20,9 @@ from tiauth_faroe.user_server import (
 )
 
 
-def make_request(action: str, **arguments) -> str:
+def make_request(action: str, **arguments) -> dict[str, Any]:
     """Helper function to create JSON request bodies"""
-    return json.dumps({"action": action, "arguments": arguments})
+    return {"action": action, "arguments": arguments}
 
 
 class DictDatabase(SyncServer):
@@ -410,16 +411,16 @@ class TestInvalidActions:
             result = e.value
             assert result.error == "Unknown action unknown_action"
 
-    def test_invalid_json(self, db):
-        with pytest.raises(ValueError, match="Invalid JSON"):
+    def test_invalid_object(self, db):
+        with pytest.raises(ValueError, match="Invalid request object"):
             handle_request_sync("invalid json", db)
 
     def test_missing_action_field(self, db):
-        request_body = json.dumps({"arguments": {}})
+        request = {"arguments": {}}
         with pytest.raises(ValueError, match="Missing or invalid 'action' field"):
-            handle_request_sync(request_body, db)
+            handle_request_sync(request, db)
 
     def test_missing_arguments_field(self, db):
-        request_body = json.dumps({"action": "create_user"})
+        request = {"action": "create_user"}
         with pytest.raises(ValueError, match="Missing or invalid 'arguments' field"):
-            handle_request_sync(request_body, db)
+            handle_request_sync(request, db)
