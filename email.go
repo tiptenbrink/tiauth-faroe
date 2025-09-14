@@ -26,7 +26,7 @@ func newSmtpEmailSenderWithAuth(identity senderIdentity, smtpServer string, smtp
 	serverAddr := smtpServer + ":" + smtpPort
 	// We don't use SMTP dial because then the local name is set to "localhost", which can lead to
 	// issues when using e.g. IP authentication
-	conn, err := net.Dial("tcp", serverAddr)
+	conn, err := net.Dial("tcp4", serverAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server at %s: %v", serverAddr, err)
 	}

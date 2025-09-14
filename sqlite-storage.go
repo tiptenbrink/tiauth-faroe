@@ -6,42 +6,42 @@ import (
 	"time"
 
 	"github.com/faroedev/faroe"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
 
-type mainStorageStruct struct {
+type storageStruct struct {
 	db         *sql.DB
 	getStmt    *sql.Stmt
-	setStmt    *sql.Stmt
+	addStmt    *sql.Stmt
 	updateStmt *sql.Stmt
 	deleteStmt *sql.Stmt
 }
 
-func (mainStorage *mainStorageStruct) Close() {
+func (storage *storageStruct) Close() {
 	// Close prepared statements first
-	if mainStorage.getStmt != nil {
-		mainStorage.getStmt.Close()
+	if storage.getStmt != nil {
+		storage.getStmt.Close()
 	}
-	if mainStorage.setStmt != nil {
-		mainStorage.setStmt.Close()
+	if storage.addStmt != nil {
+		storage.addStmt.Close()
 	}
-	if mainStorage.updateStmt != nil {
-		mainStorage.updateStmt.Close()
+	if storage.updateStmt != nil {
+		storage.updateStmt.Close()
 	}
-	if mainStorage.deleteStmt != nil {
-		mainStorage.deleteStmt.Close()
+	if storage.deleteStmt != nil {
+		storage.deleteStmt.Close()
 	}
 
 	// Close database connection
-	if mainStorage.db != nil {
-		err := mainStorage.db.Close()
+	if storage.db != nil {
+		err := storage.db.Close()
 		if err != nil {
 			log.Printf("Error closing database: %v", err)
 		}
 	}
 }
 
-func newMainStorage(fileName string) *mainStorageStruct {
+func newStorage(fileName string) *storageStruct {
 	db, err := sql.Open("sqlite3", fileName)
 	if err != nil {
 		log.Fatal(err)
@@ -81,13 +81,12 @@ func newMainStorage(fileName string) *mainStorageStruct {
 		log.Fatalf("Failed to prepare get statement: %v", err)
 	}
 
-	setStmt, err := db.Prepare(`
-		INSERT OR REPLACE INTO key_value (key, value, counter, expiration)
-		VALUES (?, ?, 0, ?)
+	addStmt, err := db.Prepare(`
+		INSERT INTO key_value (key, value, counter, expiration) VALUES (?, ?, 0, ?)
 	`)
 	if err != nil {
 		getStmt.Close()
-		log.Fatalf("Failed to prepare set statement: %v", err)
+		log.Fatalf("Failed to prepare add statement: %v", err)
 	}
 
 	updateStmt, err := db.Prepare(`
@@ -97,36 +96,36 @@ func newMainStorage(fileName string) *mainStorageStruct {
 	`)
 	if err != nil {
 		getStmt.Close()
-		setStmt.Close()
+		addStmt.Close()
 		log.Fatalf("Failed to prepare update statement: %v", err)
 	}
 
 	deleteStmt, err := db.Prepare("DELETE FROM key_value WHERE key = ?")
 	if err != nil {
 		getStmt.Close()
-		setStmt.Close()
+		addStmt.Close()
 		updateStmt.Close()
 		log.Fatalf("Failed to prepare delete statement: %v", err)
 	}
 
-	storage := &mainStorageStruct{
+	storage := &storageStruct{
 		db:         db,
 		getStmt:    getStmt,
-		setStmt:    setStmt,
+		addStmt:    addStmt,
 		updateStmt: updateStmt,
 		deleteStmt: deleteStmt,
 	}
 	return storage
 }
 
-func (mainStorage *mainStorageStruct) Get(key string) ([]byte, int32, error) {
+func (storage *storageStruct) Get(key string) ([]byte, int32, error) {
 	var value []byte
 	var counter int32
 
-	err := mainStorage.getStmt.QueryRow(key).Scan(&value, &counter)
+	err := storage.getStmt.QueryRow(key).Scan(&value, &counter)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, 0, faroe.ErrMainStorageEntryNotFound
+			return nil, 0, faroe.ErrStorageEntryNotFound
 		}
 		return nil, 0, err
 	}
@@ -134,17 +133,21 @@ func (mainStorage *mainStorageStruct) Get(key string) ([]byte, int32, error) {
 	return value, counter, nil
 }
 
-func (mainStorage *mainStorageStruct) Set(key string, value []byte, expiresAt time.Time) error {
+func (storage *storageStruct) Add(key string, value []byte, expiresAt time.Time) error {
 	expirationStr := expiresAt.Format(time.RFC3339)
-
-	_, err := mainStorage.setStmt.Exec(key, value, expirationStr)
+	_, err := storage.addStmt.Exec(key, value, expirationStr)
+	if sqliteErr, ok := err.(sqlite3.Error); ok {
+		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey {
+			return faroe.ErrStorageEntryAlreadyExists
+		}
+	}
 	return err
 }
 
-func (mainStorage *mainStorageStruct) Update(key string, value []byte, expiresAt time.Time, counter int32) error {
+func (storage *storageStruct) Update(key string, value []byte, expiresAt time.Time, counter int32) error {
 	expirationStr := expiresAt.Format(time.RFC3339)
 
-	result, err := mainStorage.updateStmt.Exec(value, expirationStr, key, counter)
+	result, err := storage.updateStmt.Exec(value, expirationStr, key, counter)
 	if err != nil {
 		return err
 	}
@@ -155,14 +158,14 @@ func (mainStorage *mainStorageStruct) Update(key string, value []byte, expiresAt
 	}
 
 	if rowsAffected == 0 {
-		return faroe.ErrMainStorageEntryNotFound
+		return faroe.ErrStorageEntryNotFound
 	}
 
 	return nil
 }
 
-func (mainStorage *mainStorageStruct) Delete(key string) error {
-	result, err := mainStorage.deleteStmt.Exec(key)
+func (storage *storageStruct) Delete(key string) error {
+	result, err := storage.deleteStmt.Exec(key)
 	if err != nil {
 		return err
 	}
@@ -173,7 +176,7 @@ func (mainStorage *mainStorageStruct) Delete(key string) error {
 	}
 
 	if rowsAffected == 0 {
-		return faroe.ErrMainStorageEntryNotFound
+		return faroe.ErrStorageEntryNotFound
 	}
 
 	return nil
