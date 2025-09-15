@@ -352,7 +352,8 @@ def process_request_gen(
         return ServerResult(serialize_user_result(action_invocation_id, result))
     else:
         return ServerResult(
-            serialize_error_result(action_invocation_id, result.error_code)
+            serialize_error_result(action_invocation_id, result.error_code),
+            result.error_code
         )
 
 
