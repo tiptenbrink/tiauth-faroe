@@ -1,39 +1,69 @@
 package main
 
 import (
+	"crypto/sha256"
 	"crypto/tls"
 	"fmt"
+	"log"
 	"net"
 	"net/smtp"
+	"strings"
 	"sync"
 	"time"
 )
 
-type senderIdentity struct {
+type IPVersion int
+
+const (
+	IPv4 IPVersion = iota
+	IPv6
+	IPAny
+)
+
+func (v IPVersion) Network() string {
+	switch v {
+	case IPv4:
+		return "tcp4"
+	case IPv6:
+		return "tcp6"
+	case IPAny:
+		return "tcp"
+	default:
+		panic("invalid option!")
+	}
+}
+
+type smtpConfig struct {
 	// Can be empty string, in which case email is used
-	name  string
-	email string
+	senderName  string
+	senderEmail string
+	// Used for the Message-ID
+	domain     string
+	serverHost string
+	serverPort string
+	ipVersion  IPVersion
+	// Can be nil, in which case no authentication is performed
+	auth smtp.Auth
 }
 
 type smtpActionsEmailSender struct {
-	client   *smtp.Client
-	identity senderIdentity
-	m        sync.Mutex
+	client *smtp.Client
+	config *smtpConfig
+	m      sync.Mutex
 }
 
-// For standard username+password authentication, provide smtp.PlainAuth
-func newSmtpEmailSenderWithAuth(identity senderIdentity, smtpServer string, smtpPort string, auth smtp.Auth) (*smtpActionsEmailSender, error) {
-	serverAddr := smtpServer + ":" + smtpPort
+func createConnectedSmtpClient(config *smtpConfig) (*smtp.Client, error) {
+	serverAddr := config.serverHost + ":" + config.serverPort
 	// We don't use SMTP dial because then the local name is set to "localhost", which can lead to
 	// issues when using e.g. IP authentication
-	conn, err := net.Dial("tcp4", serverAddr)
+	conn, err := net.Dial(config.ipVersion.Network(), serverAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server at %s: %v", serverAddr, err)
 	}
-	tlemailSenderonfig := &tls.Config{
-		ServerName: smtpServer,
+	tlsConfig := &tls.Config{
+		ServerName: config.serverHost,
 	}
-	client, err := smtp.NewClient(conn, smtpServer)
+	client, err := smtp.NewClient(conn, config.serverHost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to establish SMTP client: %v", err)
 	}
@@ -46,36 +76,51 @@ func newSmtpEmailSenderWithAuth(identity senderIdentity, smtpServer string, smtp
 		return nil, fmt.Errorf("Error sending EHLO: %v\n", err)
 	}
 
-	if err = client.StartTLS(tlemailSenderonfig); err != nil {
+	if err = client.StartTLS(tlsConfig); err != nil {
 		client.Close()
 		return nil, fmt.Errorf("failed to start TLS: %v", err)
 	}
 
-	if auth != nil {
-		if err = client.Auth(auth); err != nil {
+	if config.auth != nil {
+		if err = client.Auth(config.auth); err != nil {
 			client.Close()
 			return nil, fmt.Errorf("failed to authenticate: %v", err)
 		}
 	}
+	return client, nil
+}
+
+func newSmtpEmailSender(config *smtpConfig) (*smtpActionsEmailSender, error) {
+	client, err := createConnectedSmtpClient(config)
+
+	if err != nil {
+		return nil, err
+	}
 
 	return &smtpActionsEmailSender{
-		client:   client,
-		identity: identity,
+		client: client,
+		config: config,
 	}, nil
 }
 
-func newSmtpEmailSenderNoAuth(identity senderIdentity, smtpServer string, smtpPort string) (*smtpActionsEmailSender, error) {
-	return newSmtpEmailSenderWithAuth(identity, smtpServer, smtpPort, nil)
+func generateMessageID(senderEmail, receiverEmail, body string, time string, domain string) string {
+	input := fmt.Sprintf("%s|%s|%s|%s", senderEmail, receiverEmail, body, time)
+	hash := sha256.Sum256([]byte(input))
+
+	// Using just the first 32 is fine, this is not used for any security purposes
+	hashStr := fmt.Sprintf("%x", hash)[:32]
+
+	return fmt.Sprintf("<%s@%s>", hashStr, domain)
 }
 
 // receiverName can be empty string, in which case the email is used.
 func (emailSender *smtpActionsEmailSender) SendEmail(receiverName string, receiverEmail string, subject string, body string) error {
 	var fromHeader, toHeader string
 
-	if emailSender.identity.name != "" {
-		fromHeader = fmt.Sprintf("%s <%s>", emailSender.identity.name, emailSender.identity.email)
+	if emailSender.config.senderName != "" {
+		fromHeader = fmt.Sprintf("%s <%s>", emailSender.config.senderName, emailSender.config.senderEmail)
 	} else {
-		fromHeader = emailSender.identity.email
+		fromHeader = emailSender.config.senderEmail
 	}
 
 	if receiverName != "" {
@@ -84,37 +129,69 @@ func (emailSender *smtpActionsEmailSender) SendEmail(receiverName string, receiv
 		toHeader = receiverEmail
 	}
 
-	message := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s",
-		fromHeader, toHeader, subject, body)
+	date := time.Now().Format(time.RFC1123Z)
+	messageId := generateMessageID(emailSender.config.senderEmail, receiverEmail, body, date, emailSender.config.domain)
+
+	headers := []string{
+		fmt.Sprintf("From: %s", fromHeader),
+		fmt.Sprintf("To: %s", toHeader),
+		fmt.Sprintf("Subject: %s", subject),
+		fmt.Sprintf("Date: %s", date),
+		fmt.Sprintf("Message-ID: %s", messageId),
+		"MIME-Version: 1.0",
+		"Content-Type: text/plain; charset=UTF-8",
+	}
+
+	message := strings.Join(headers, "\r\n") + "\r\n\r\n" + body
 
 	emailSender.m.Lock()
 	defer emailSender.m.Unlock()
 
-	err := emailSender.client.Mail(emailSender.identity.email)
-	if err != nil {
-		return fmt.Errorf("failed to set sender: %v", err)
+	var mailErr error = nil
+	for range 3 {
+		if mailErr != nil {
+			newClient, err := createConnectedSmtpClient(emailSender.config)
+			if err != nil {
+				return err
+			}
+			emailSender.client = newClient
+		}
+
+		err := emailSender.client.Mail(emailSender.config.senderEmail)
+		if err != nil {
+			mailErr = fmt.Errorf("failed to set sender: %v", err)
+			continue
+		}
+
+		if err = emailSender.client.Rcpt(receiverEmail); err != nil {
+			mailErr = fmt.Errorf("failed to set recipient: %v", err)
+			continue
+		}
+
+		writer, err := emailSender.client.Data()
+		if err != nil {
+			mailErr = fmt.Errorf("failed to get data writer: %v", err)
+			continue
+		}
+
+		_, err = writer.Write([]byte(message))
+		if err != nil {
+			mailErr = fmt.Errorf("failed to write message: %v", err)
+			continue
+		}
+
+		err = writer.Close()
+		if err != nil {
+			mailErr = fmt.Errorf("failed to close writer: %v", err)
+			continue
+		}
+
+		// If we reach here everything is successful, so reset any previous errors and break loop
+		mailErr = nil
+		break
 	}
 
-	if err = emailSender.client.Rcpt(receiverEmail); err != nil {
-		return fmt.Errorf("failed to set recipient: %v", err)
-	}
-
-	writer, err := emailSender.client.Data()
-	if err != nil {
-		return fmt.Errorf("failed to get data writer: %v", err)
-	}
-
-	_, err = writer.Write([]byte(message))
-	if err != nil {
-		return fmt.Errorf("failed to write message: %v", err)
-	}
-
-	err = writer.Close()
-	if err != nil {
-		return fmt.Errorf("failed to close writer: %v", err)
-	}
-
-	return nil
+	return mailErr
 }
 
 func (emailSender *smtpActionsEmailSender) Close() error {
@@ -204,12 +281,17 @@ func (emailSender *smtpActionsEmailSender) StartKeepAliveRoutine(interval time.D
 			select {
 			case <-ticker.C:
 				if err := emailSender.KeepAlive(); err != nil {
-					fmt.Printf("Keep-alive failed: %v\n", err)
+					log.Println("Keep-alive failed, reestablishing connection...")
+					newClient, err := createConnectedSmtpClient(emailSender.config)
+					if err != nil {
+						log.Panicf("Could not reestablish connection: %v\n", err)
+					}
+					emailSender.client = newClient
 				} else {
-					fmt.Println("Keep-alive sent successfully")
+					log.Println("Keep-alive sent successfully")
 				}
 			case <-stopChan:
-				fmt.Println("Keep-alive routine stopped")
+				log.Println("Keep-alive routine stopped")
 				return
 			}
 		}

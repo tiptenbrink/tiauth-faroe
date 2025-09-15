@@ -8,4 +8,4 @@ tiauth-faroe
 **/.ruff_cache
 **/.venv
 .env
-main.go
+notes.md
