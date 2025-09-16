@@ -181,3 +181,8 @@ func (storage *storageStruct) Delete(key string) error {
 
 	return nil
 }
+
+func (storage *storageStruct) Clear() error {
+	_, err := storage.db.Exec("DELETE FROM key_value")
+	return err
+}

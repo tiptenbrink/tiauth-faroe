@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"time"
@@ -15,10 +16,17 @@ func (*actionLogger) LogActionError(timestamp time.Time, message string, actionI
 }
 
 func main() {
-	// Load environment variables from .env file
-	envMap, err := loadEnv(".env")
+	// Parse command line flags
+	insecure := flag.Bool("insecure", false, "Disable TLS encryption for SMTP (dangerous)")
+	envFile := flag.String("env-file", ".env", "Path to environment file")
+	interactive := flag.Bool("interactive", false, "Run in interactive mode with stdin commands")
+	smtpNoInit := flag.Bool("smtp-no-init", false, "Do not initialize SMTP connection on startup")
+	flag.Parse()
+
+	// Load environment variables from specified env file
+	envMap, err := loadEnv(*envFile)
 	if err != nil {
-		log.Printf("Warning: Could not load .env file: %v", err)
+		log.Printf("Warning: Could not load env file %s: %v", *envFile, err)
 		envMap = make(map[string]string)
 	}
 
@@ -38,25 +46,37 @@ func main() {
 	userServerClient := faroe.NewUserServerClient(userActionInvocationClient)
 	userPasswordHashAlgorithm := newArgon2id(3, 1024*64, 1)
 	temporaryPasswordHashAlgorithm := newArgon2id(3, 1024*16, 1)
-	emailSender, err := newSmtpEmailSender(&smtpConfig{
+	var smtpSecurity SMTPSecurity
+	if *insecure {
+		smtpSecurity = SMTPInsecureDangerous
+	} else {
+		smtpSecurity = SMTPSecure
+	}
+
+	emailConfig := &smtpConfig{
 		senderName:  smtpSenderName,
 		senderEmail: smtpSenderEmail,
 		serverHost:  smtpServerHost,
 		serverPort:  smtpServerPort,
 		ipVersion:   IPv4,
 		domain:      smtpDomain,
-	})
-	if err != nil {
-		log.Fatal(err)
+		security:    smtpSecurity,
 	}
-	defer emailSender.Close()
+	var emailSender *smtpActionsEmailSender
 
-	stopKeepAlive := emailSender.StartKeepAliveRoutine(time.Minute * 5)
-	defer func() {
-		log.Println("Stopping keep-alive routine...")
-		stopKeepAlive <- true
-		close(stopKeepAlive)
-	}()
+	emailSender = &smtpActionsEmailSender{config: emailConfig}
+	if *smtpNoInit {
+		// Don't initialize
+	} else {
+		emailSender.m.Lock()
+		err := emailSender.Start(time.Minute * 5)
+		if err != nil {
+			log.Fatalf("failed to start server: %v", err)
+		}
+		emailSender.m.Unlock()
+	}
+
+	defer emailSender.Close()
 
 	faroeServer := faroe.NewServer(
 		storage,
@@ -76,7 +96,15 @@ func main() {
 
 	server := &serverStruct{server: faroeServer}
 
-	server.listen(port)
+	if *interactive {
+		shell := NewInteractiveShell(storage, server, port)
+		shell.Run()
+	} else {
+		err := server.listen(port)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 }
 
 func getEnvWithMap(envMap map[string]string, key string) string {

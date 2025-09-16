@@ -22,14 +22,32 @@ const (
 
 func (v IPVersion) Network() string {
 	switch v {
+	case IPAny:
+		return "tcp"
 	case IPv4:
 		return "tcp4"
 	case IPv6:
 		return "tcp6"
-	case IPAny:
-		return "tcp"
 	default:
 		panic("invalid option!")
+	}
+}
+
+type SMTPSecurity int
+
+const (
+	SMTPSecure SMTPSecurity = iota
+	SMTPInsecureDangerous
+)
+
+func (v SMTPSecurity) EnableSecurity() bool {
+	switch v {
+	case SMTPSecure:
+		return true
+	case SMTPInsecureDangerous:
+		return false
+	default:
+		return true
 	}
 }
 
@@ -43,13 +61,16 @@ type smtpConfig struct {
 	serverPort string
 	ipVersion  IPVersion
 	// Can be nil, in which case no authentication is performed
-	auth smtp.Auth
+	auth     smtp.Auth
+	security SMTPSecurity
 }
 
 type smtpActionsEmailSender struct {
-	client *smtp.Client
-	config *smtpConfig
-	m      sync.Mutex
+	client        *smtp.Client
+	config        *smtpConfig
+	m             sync.Mutex
+	keepAliveOnce sync.Once
+	stopChan      chan bool
 }
 
 func createConnectedSmtpClient(config *smtpConfig) (*smtp.Client, error) {
@@ -60,9 +81,7 @@ func createConnectedSmtpClient(config *smtpConfig) (*smtp.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server at %s: %v", serverAddr, err)
 	}
-	tlsConfig := &tls.Config{
-		ServerName: config.serverHost,
-	}
+
 	client, err := smtp.NewClient(conn, config.serverHost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to establish SMTP client: %v", err)
@@ -76,9 +95,16 @@ func createConnectedSmtpClient(config *smtpConfig) (*smtp.Client, error) {
 		return nil, fmt.Errorf("Error sending EHLO: %v\n", err)
 	}
 
-	if err = client.StartTLS(tlsConfig); err != nil {
-		client.Close()
-		return nil, fmt.Errorf("failed to start TLS: %v", err)
+	if config.security.EnableSecurity() {
+		tlsConfig := &tls.Config{
+			ServerName: config.serverHost,
+		}
+		if err = client.StartTLS(tlsConfig); err != nil {
+			client.Close()
+			return nil, fmt.Errorf("failed to start TLS: %v", err)
+		}
+	} else {
+		log.Println("[DANGER] TLS not enabled, messages are not secured and can be read when intercepted!")
 	}
 
 	if config.auth != nil {
@@ -88,19 +114,6 @@ func createConnectedSmtpClient(config *smtpConfig) (*smtp.Client, error) {
 		}
 	}
 	return client, nil
-}
-
-func newSmtpEmailSender(config *smtpConfig) (*smtpActionsEmailSender, error) {
-	client, err := createConnectedSmtpClient(config)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &smtpActionsEmailSender{
-		client: client,
-		config: config,
-	}, nil
 }
 
 func generateMessageID(senderEmail, receiverEmail, body string, time string, domain string) string {
@@ -157,6 +170,13 @@ func (emailSender *smtpActionsEmailSender) SendEmail(receiverName string, receiv
 			emailSender.client = newClient
 		}
 
+		if emailSender.client == nil {
+			err := emailSender.Start(time.Minute * 5)
+			if err != nil {
+				return err
+			}
+		}
+
 		err := emailSender.client.Mail(emailSender.config.senderEmail)
 		if err != nil {
 			mailErr = fmt.Errorf("failed to set sender: %v", err)
@@ -197,6 +217,8 @@ func (emailSender *smtpActionsEmailSender) SendEmail(receiverName string, receiv
 func (emailSender *smtpActionsEmailSender) Close() error {
 	emailSender.m.Lock()
 	defer emailSender.m.Unlock()
+
+	emailSender.StopKeepAlive()
 
 	if emailSender.client != nil {
 		return emailSender.client.Quit()
@@ -258,20 +280,28 @@ func (emailSender *smtpActionsEmailSender) SendUserEmailAddressUpdatedNotificati
 	return emailSender.SendEmail(displayName, emailAddress, subject, body)
 }
 
+// NOTE: Mutex is not unlocked in case of error!
 func (emailSender *smtpActionsEmailSender) KeepAlive() error {
 	emailSender.m.Lock()
-	defer emailSender.m.Unlock()
 
 	// NOOP command keeps connection alive
 	if err := emailSender.client.Noop(); err != nil {
+		// We do not unlock so that caller can keep the lock to reestablish connection
 		return fmt.Errorf("keep-alive failed: %v", err)
 	}
 
+	emailSender.m.Unlock()
 	return nil
 }
 
-func (emailSender *smtpActionsEmailSender) StartKeepAliveRoutine(interval time.Duration) chan bool {
-	stopChan := make(chan bool)
+// Only call this if the emailSender is locked!
+func (emailSender *smtpActionsEmailSender) Start(interval time.Duration) error {
+	emailSender.stopChan = make(chan bool)
+	newClient, err := createConnectedSmtpClient(emailSender.config)
+	if err != nil {
+		return fmt.Errorf("Could not start emailSender: %v\n", err)
+	}
+	emailSender.client = newClient
 
 	go func() {
 		ticker := time.NewTicker(interval)
@@ -284,18 +314,32 @@ func (emailSender *smtpActionsEmailSender) StartKeepAliveRoutine(interval time.D
 					log.Println("Keep-alive failed, reestablishing connection...")
 					newClient, err := createConnectedSmtpClient(emailSender.config)
 					if err != nil {
-						log.Panicf("Could not reestablish connection: %v\n", err)
+						emailSender.m.Unlock()
+						log.Fatalf("Could not reestablish connection: %v\n", err)
 					}
 					emailSender.client = newClient
+					emailSender.m.Unlock()
 				} else {
+					// We're already unlocked in this case
 					log.Println("Keep-alive sent successfully")
 				}
-			case <-stopChan:
+			case <-emailSender.stopChan:
 				log.Println("Keep-alive routine stopped")
 				return
 			}
 		}
 	}()
 
-	return stopChan
+	return nil
+}
+
+func (emailSender *smtpActionsEmailSender) StopKeepAlive() {
+	if emailSender.stopChan != nil {
+		select {
+		case emailSender.stopChan <- true:
+		default:
+			// Channel might be closed already
+		}
+		close(emailSender.stopChan)
+	}
 }

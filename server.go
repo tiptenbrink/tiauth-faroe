@@ -13,12 +13,9 @@ type serverStruct struct {
 	server *faroe.ServerStruct
 }
 
-func (server *serverStruct) listen(port string) {
+func (server *serverStruct) listen(port string) error {
 	log.Printf("Listening on port %s...", port)
-	err := http.ListenAndServe(fmt.Sprintf(":%s", port), http.HandlerFunc(server.handle))
-	if err != nil {
-		panic(err)
-	}
+	return http.ListenAndServe(fmt.Sprintf(":%s", port), http.HandlerFunc(server.handle))
 }
 
 func (server *serverStruct) handle(w http.ResponseWriter, r *http.Request) {
