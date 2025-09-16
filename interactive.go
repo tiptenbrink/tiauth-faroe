@@ -3,26 +3,43 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io"
-	"log"
 	"os"
 	"strings"
 )
 
 type InteractiveShell struct {
-	storage *storageStruct
-	server  *serverStruct
-	port    string
 	reader  *bufio.Reader
+	storage *storageStruct
+	errChan chan error
 }
 
-func NewInteractiveShell(storage *storageStruct, server *serverStruct, port string) *InteractiveShell {
+func NewInteractiveShell(storage *storageStruct) *InteractiveShell {
 	return &InteractiveShell{
 		storage: storage,
-		server:  server,
-		port:    port,
 		reader:  bufio.NewReader(os.Stdin),
 	}
+}
+
+func (shell *InteractiveShell) listen() {
+	fmt.Println("Interactive mode started.")
+	fmt.Println("Type 'help' for available commands.")
+	fmt.Print("> ")
+
+	errChan := make(chan error, 1)
+
+	go func() {
+		for {
+			line, err := shell.reader.ReadString('\n')
+			if err != nil {
+				errChan <- err
+				return
+			}
+			command := strings.TrimSpace(line)
+			shell.handleCommand(command)
+		}
+	}()
+
+	shell.errChan = errChan
 }
 
 func (shell *InteractiveShell) showHelp() {
@@ -30,30 +47,6 @@ func (shell *InteractiveShell) showHelp() {
 	fmt.Println("  reset - Clear all data from storage")
 	fmt.Println("  help  - Show this help message")
 	fmt.Println("  exit  - Exit program")
-}
-
-func (shell *InteractiveShell) Run() {
-	// Start server in a goroutine
-	go shell.server.listen(shell.port)
-
-	fmt.Printf("Interactive mode started. Server running on port %s\n", shell.port)
-	fmt.Println("Type 'help' for available commands.")
-	fmt.Print("> ")
-
-	for {
-		line, err := shell.reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				fmt.Println("\nEOF received, exiting...")
-				return
-			}
-			log.Printf("Error reading from stdin: %v", err)
-			continue
-		}
-
-		command := strings.TrimSpace(line)
-		shell.handleCommand(command)
-	}
 }
 
 func (shell *InteractiveShell) handleCommand(command string) {

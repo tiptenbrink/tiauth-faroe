@@ -63,14 +63,16 @@ type smtpConfig struct {
 	// Can be nil, in which case no authentication is performed
 	auth     smtp.Auth
 	security SMTPSecurity
+	// Disable keepAlive, if unset defaults to false (keepAlive enabled)
+	disableKeepAlive bool
 }
 
 type smtpActionsEmailSender struct {
-	client        *smtp.Client
-	config        *smtpConfig
-	m             sync.Mutex
-	keepAliveOnce sync.Once
-	stopChan      chan bool
+	client   *smtp.Client
+	config   *smtpConfig
+	m        sync.Mutex
+	stopChan chan bool
+	errChan  chan error
 }
 
 func createConnectedSmtpClient(config *smtpConfig) (*smtp.Client, error) {
@@ -296,39 +298,45 @@ func (emailSender *smtpActionsEmailSender) KeepAlive() error {
 
 // Only call this if the emailSender is locked!
 func (emailSender *smtpActionsEmailSender) Start(interval time.Duration) error {
+	emailSender.errChan = make(chan error, 1)
 	emailSender.stopChan = make(chan bool)
+
 	newClient, err := createConnectedSmtpClient(emailSender.config)
 	if err != nil {
 		return fmt.Errorf("Could not start emailSender: %v\n", err)
 	}
 	emailSender.client = newClient
 
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
+	if emailSender.config.disableKeepAlive {
+		// Do nothing, since we disable keepalive
+	} else {
+		go func() {
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
 
-		for {
-			select {
-			case <-ticker.C:
-				if err := emailSender.KeepAlive(); err != nil {
-					log.Println("Keep-alive failed, reestablishing connection...")
-					newClient, err := createConnectedSmtpClient(emailSender.config)
-					if err != nil {
+			for {
+				select {
+				case <-ticker.C:
+					if err := emailSender.KeepAlive(); err != nil {
+						log.Println("Keep-alive failed, reestablishing connection...")
+						newClient, err := createConnectedSmtpClient(emailSender.config)
+						if err != nil {
+							emailSender.errChan <- fmt.Errorf("could not reestablish SMTP connection: %v", err)
+							return
+						}
+						emailSender.client = newClient
 						emailSender.m.Unlock()
-						log.Fatalf("Could not reestablish connection: %v\n", err)
+					} else {
+						// We're already unlocked in this case
+						log.Println("Keep-alive sent successfully")
 					}
-					emailSender.client = newClient
-					emailSender.m.Unlock()
-				} else {
-					// We're already unlocked in this case
-					log.Println("Keep-alive sent successfully")
+				case <-emailSender.stopChan:
+					log.Println("Keep-alive routine stopped")
+					return
 				}
-			case <-emailSender.stopChan:
-				log.Println("Keep-alive routine stopped")
-				return
 			}
-		}
-	}()
+		}()
+	}
 
 	return nil
 }

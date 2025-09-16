@@ -20,7 +20,8 @@ func main() {
 	insecure := flag.Bool("insecure", false, "Disable TLS encryption for SMTP (dangerous)")
 	envFile := flag.String("env-file", ".env", "Path to environment file")
 	interactive := flag.Bool("interactive", false, "Run in interactive mode with stdin commands")
-	smtpNoInit := flag.Bool("smtp-no-init", false, "Do not initialize SMTP connection on startup")
+	noSmtpInit := flag.Bool("no-smtp-init", false, "Do not initialize SMTP connection on startup")
+	noKeepAlive := flag.Bool("no-keep-alive", false, "Do not run keep-alive routine")
 	flag.Parse()
 
 	// Load environment variables from specified env file
@@ -54,18 +55,21 @@ func main() {
 	}
 
 	emailConfig := &smtpConfig{
-		senderName:  smtpSenderName,
-		senderEmail: smtpSenderEmail,
-		serverHost:  smtpServerHost,
-		serverPort:  smtpServerPort,
-		ipVersion:   IPv4,
-		domain:      smtpDomain,
-		security:    smtpSecurity,
+		senderName:       smtpSenderName,
+		senderEmail:      smtpSenderEmail,
+		serverHost:       smtpServerHost,
+		serverPort:       smtpServerPort,
+		ipVersion:        IPv4,
+		domain:           smtpDomain,
+		security:         smtpSecurity,
+		disableKeepAlive: *noKeepAlive,
 	}
 	var emailSender *smtpActionsEmailSender
 
-	emailSender = &smtpActionsEmailSender{config: emailConfig}
-	if *smtpNoInit {
+	emailSender = &smtpActionsEmailSender{
+		config: emailConfig,
+	}
+	if *noSmtpInit {
 		// Don't initialize
 	} else {
 		emailSender.m.Lock()
@@ -75,7 +79,6 @@ func main() {
 		}
 		emailSender.m.Unlock()
 	}
-
 	defer emailSender.Close()
 
 	faroeServer := faroe.NewServer(
@@ -95,14 +98,21 @@ func main() {
 	)
 
 	server := &serverStruct{server: faroeServer}
-
+	server.listen(port)
+	// TODO: probably should create separate connection for db
+	shell := NewInteractiveShell(storage)
 	if *interactive {
-		shell := NewInteractiveShell(storage, server, port)
-		shell.Run()
-	} else {
-		err := server.listen(port)
-		if err != nil {
-			log.Fatal(err)
+		shell.listen()
+	}
+
+	for {
+		select {
+		case serverErr := <-server.errChan:
+			log.Fatal(serverErr)
+		case shellErr := <-shell.errChan:
+			log.Fatal(shellErr)
+		case mailErr := <-emailSender.errChan:
+			log.Fatal(mailErr)
 		}
 	}
 }

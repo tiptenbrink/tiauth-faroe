@@ -10,12 +10,23 @@ import (
 )
 
 type serverStruct struct {
-	server *faroe.ServerStruct
+	server  *faroe.ServerStruct
+	errChan chan error
 }
 
-func (server *serverStruct) listen(port string) error {
-	log.Printf("Listening on port %s...", port)
-	return http.ListenAndServe(fmt.Sprintf(":%s", port), http.HandlerFunc(server.handle))
+func (server *serverStruct) listen(port string) {
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer close(errChan)
+		log.Printf("Listening on port %s...", port)
+		err := http.ListenAndServe(fmt.Sprintf(":%s", port), http.HandlerFunc(server.handle))
+		if err != nil {
+			errChan <- err
+		}
+	}()
+
+	server.errChan = errChan
 }
 
 func (server *serverStruct) handle(w http.ResponseWriter, r *http.Request) {
