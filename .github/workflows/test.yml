@@ -1,0 +1,126 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "./go.mod"
+          cache: true
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10.17"
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: "testapp/pnpm-lock.yaml"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          version: "0.8.17"
+
+      - name: Install testapp dependencies
+        working-directory: ./testapp
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync Python dependencies
+        working-directory: ./py-user-server/sync
+        run: uv sync
+
+      - name: Build Go dependencies
+        run: |
+          go mod download
+
+      - name: Build Go
+        run: CGO_ENABLED=1 go build
+
+      - name: Start Go auth server
+        run: |
+          nohup ./tiauth-faroe --insecure --no-smtp-init --no-keep-alive --env-file .env.test > go_server.log 2>&1 &
+          echo $! > go_server.pid
+
+          # Wait for Go server to be ready with health check
+          echo "Waiting for Go server to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:3777/alive >/dev/null 2>&1; then
+              echo "Go server is ready!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Go server failed to start within 30 seconds"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Start Python user server
+        working-directory: ./py-user-server/sync
+        run: |
+          nohup uv run main.py > ../../python_server.log 2>&1 &
+          echo $! > ../../python_server.pid
+
+          # Wait for Python server to be ready with health check
+          echo "Waiting for Python user server to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8000/auth/prepare_user -X POST >/dev/null 2>&1; then
+              echo "Python server is ready!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Python server failed to start within 30 seconds"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Run test suite
+        working-directory: ./testapp
+        run: pnpm test
+
+      - name: Output Go server log
+        if: success() || failure()
+        run: cat go_server.log
+
+      - name: Output Python server log
+        if: success() || failure()
+        run: cat python_server.log
+
+      - name: Upload server logs as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs
+          path: |
+            go_server.log
+            python_server.log
+          if-no-files-found: ignore
+
+      - name: Cleanup servers
+        if: always()
+        run: |
+          if [ -f python_server.pid ]; then
+            kill $(cat python_server.pid) || true
+          fi
+          if [ -f go_server.pid ]; then
+            kill $(cat go_server.pid) || true
+          fi

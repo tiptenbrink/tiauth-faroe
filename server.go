@@ -68,6 +68,11 @@ func (server *serverStruct) handle(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[%s] request=%s\n", time.Now().Format("15:04:05.000"), "reset")
 		server.storage.Clear()
 		return
+	} else if r.Method == "GET" && r.URL.Path == "/alive" {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"alive"}`))
+		return
 	}
 
 	w.WriteHeader(http.StatusNotFound)
