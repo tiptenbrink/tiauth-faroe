@@ -19,6 +19,7 @@ build-backend = "uv_build"
 
 [tool.uv.workspace]
 members = [
-    "bottle",
+    "sync",
     "data",
+    "lib"
 ]

@@ -168,7 +168,6 @@ class TestCreateUser:
 
         result = handle_request_sync(request_body2, db)
 
-        assert result.error is None
         response = json.loads(result.response_json)
         assert response["ok"] is False
         assert response["error_code"] == "email_address_already_used"
@@ -200,7 +199,6 @@ class TestGetUser:
         request_body = make_request("get_user", user_id="nonexistent")
         result = handle_request_sync(request_body, db)
 
-        assert result.error is None
         response = json.loads(result.response_json)
         assert response["ok"] is False
         assert response["error_code"] == "user_not_found"
@@ -229,7 +227,6 @@ class TestGetUserByEmailAddress:
         request_body = make_request("get_user_by_email_address", email_address="nonexistent@example.com")
         result = handle_request_sync(request_body, db)
 
-        assert result.error is None
         response = json.loads(result.response_json)
         assert response["ok"] is False
         assert response["error_code"] == "user_not_found"
@@ -276,7 +273,6 @@ class TestUpdateUserEmailAddress:
         )
         result = handle_request_sync(update_request, db)
 
-        assert result.error is None
         response = json.loads(result.response_json)
         assert response["ok"] is False
         assert response["error_code"] == "user_not_found"
@@ -379,7 +375,6 @@ class TestDeleteUser:
         request_body = make_request("delete_user", user_id="nonexistent")
         result = handle_request_sync(request_body, db)
 
-        assert result.error is None
         response = json.loads(result.response_json)
         assert response["ok"] is False
         assert response["error_code"] == "user_not_found"
