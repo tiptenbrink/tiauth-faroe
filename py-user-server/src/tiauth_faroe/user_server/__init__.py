@@ -238,7 +238,7 @@ def serialize_user_result(action_invocation_id: str, user: User) -> str:
 
 
 def serialize_empty_result(action_invocation_id: str) -> str:
-    result_json_object = {"ok": True, "action_invocation_id": action_invocation_id, "values": []}
+    result_json_object = {"ok": True, "action_invocation_id": action_invocation_id, "values": {}}
     return json.dumps(result_json_object)
 
 
