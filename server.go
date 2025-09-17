@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/faroedev/faroe"
 )
@@ -51,6 +52,7 @@ func (server *serverStruct) handle(w http.ResponseWriter, r *http.Request) {
 
 		resultJSON, err := server.server.ResolveActionInvocationEndpointRequestWithBlocklist(string(bodyBytes), nil)
 		if err != nil {
+			log.Printf("[%s] invoke action error=%v\n", time.Now().Format("15:04:05.000"), err)
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 			w.WriteHeader(http.StatusBadRequest)
@@ -63,6 +65,7 @@ func (server *serverStruct) handle(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(resultJSON))
 		return
 	} else if server.enableReset && r.Method == "POST" && r.URL.Path == "/reset" {
+		log.Printf("[%s] request=%s\n", time.Now().Format("15:04:05.000"), "reset")
 		server.storage.Clear()
 		return
 	}

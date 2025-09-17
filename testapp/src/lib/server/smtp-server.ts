@@ -20,7 +20,25 @@ export interface SignupData {
 }
 
 export interface SigninDetectedData {
-  category: "signinDetected";
+  category: "signinNotification";
+}
+
+export interface EmailUpdateData {
+  category: "emailUpdate";
+  code: string;
+}
+
+export interface EmailUpdateDetectedData {
+  category: "emailUpdateNotification";
+}
+
+export interface PasswordUpdateDetectedData {
+  category: "passwordUpdateNotification";
+}
+
+export interface PasswordResetData {
+  category: "passwordReset";
+  tempPassword: string;
 }
 
 export interface CategoryEmail<Data> {
@@ -28,9 +46,33 @@ export interface CategoryEmail<Data> {
   data: Data;
 }
 
-type CategoryDataMap = {
+export type CategoryDataMap = {
   signup: SignupData;
+  signinNotification: SigninDetectedData;
+  emailUpdate: EmailUpdateData;
+  emailUpdateNotification: EmailUpdateDetectedData;
+  passwordReset: PasswordResetData;
+  passwordUpdateNotification: PasswordUpdateDetectedData;
 };
+
+const categories: string[] = [
+  "signup",
+  "signinNotification",
+  "emailUpdate",
+  "emailUpdateNotification",
+  "passwordReset",
+  "passwordUpdateNotification",
+] satisfies (keyof CategoryDataMap)[];
+
+function isMailCategory(category: string): category is keyof CategoryDataMap {
+  return categories.includes(category);
+}
+
+function asMailsKey(
+  category: keyof CategoryDataMap,
+): Exclude<keyof Emails, "to"> {
+  return `${category}Mails`;
+}
 
 export type CategoryEmailByType<T extends keyof CategoryDataMap> =
   CategoryEmail<CategoryDataMap[T]>;
@@ -38,15 +80,19 @@ export type CategoryEmailByType<T extends keyof CategoryDataMap> =
 interface Emails {
   to: string;
   signupMails: CategoryEmail<SignupData>[];
-  signinMails: CategoryEmail<SigninDetectedData>[];
+  signinNotificationMails: CategoryEmail<SigninDetectedData>[];
+  emailUpdateMails: CategoryEmail<EmailUpdateData>[];
+  emailUpdateNotificationMails: CategoryEmail<EmailUpdateDetectedData>[];
+  passwordResetMails: CategoryEmail<PasswordResetData>[];
+  passwordUpdateNotificationMails: CategoryEmail<PasswordUpdateDetectedData>[];
 }
 
 function extractData(
   subject: string,
   text: string,
-): SignupData | SigninDetectedData | undefined {
+): CategoryDataMap[keyof CategoryDataMap] | undefined {
   if (subject === "Signup verification code") {
-    const regex = /Your email address verification code is\s+(\w+)/i;
+    const regex = /Your email address verification code is\s+(\S+)\./i;
     const verificationCode = text.match(regex)?.[1];
     return {
       category: "signup",
@@ -54,7 +100,30 @@ function extractData(
     };
   } else if (subject === "Sign-in detected") {
     return {
-      category: "signinDetected",
+      category: "signinNotification",
+    };
+  } else if (subject === "Email update verification code") {
+    const regex =
+      /You have made a request to update your email. Your verification code is\s+(\S+)\./i;
+    const verificationCode = text.match(regex)![1]!;
+    return {
+      category: "emailUpdate",
+      code: verificationCode!,
+    };
+  } else if (subject === "Email updated") {
+    return {
+      category: "emailUpdateNotification",
+    };
+  } else if (subject === "Password reset temporary password") {
+    const regex = /Your password reset temporary password is\s+(\S+)\./i;
+    const tempPassword = text.match(regex)![1]!;
+    return {
+      category: "passwordReset",
+      tempPassword,
+    };
+  } else if (subject === "Password updated") {
+    return {
+      category: "passwordUpdateNotification",
     };
   }
   return undefined;
@@ -115,7 +184,11 @@ export class TestSMTPServer {
           mails = {
             to: toAddress,
             signupMails: [],
-            signinMails: [],
+            signinNotificationMails: [],
+            emailUpdateMails: [],
+            emailUpdateNotificationMails: [],
+            passwordResetMails: [],
+            passwordUpdateNotificationMails: [],
           };
           this.map.set(toAddress, mails);
         }
@@ -123,17 +196,10 @@ export class TestSMTPServer {
         const data = extractData(subject, text);
         if (data === undefined) {
           throw new Error("Could not extract data!");
-        } else if (data.category === "signup") {
-          mails.signupMails.push({
-            mail,
-            data,
-          });
-          console.log(JSON.stringify([...this.map.values()]));
-        } else if (data.category === "signinDetected") {
-          mails.signinMails.push({
-            mail,
-            data,
-          });
+        } else {
+          const mailsKey: Exclude<keyof Emails, "to"> = `${data.category}Mails`;
+          //@ts-ignore It doesn't know that the data matches the key, maybe fixable?
+          mails[mailsKey].push({ mail, data });
         }
 
         callback();
@@ -165,27 +231,23 @@ export class TestSMTPServer {
         const email = url.searchParams.get("email");
         const category = url.searchParams.get("category");
 
-        console.log(`request email=${email} cat=${category}`);
-
-        if (!email || category !== "signup") {
+        if (!email || !category || !isMailCategory(category)) {
           res.writeHead(400);
           res.end("Invalid parameters");
           return;
         }
 
         const emailData = this.map.get(email);
-        if (!emailData || emailData.signupMails.length === 0) {
+
+        if (!emailData || emailData[asMailsKey(category)].length === 0) {
           res.writeHead(404);
           res.end("No emails found");
           return;
         }
+        const mails = emailData[asMailsKey(category)];
 
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify(
-            emailData.signupMails[emailData.signupMails.length - 1],
-          ),
-        );
+        res.end(JSON.stringify(mails.at(-1)));
       } else {
         console.log("unknown request path");
         res.writeHead(404);
