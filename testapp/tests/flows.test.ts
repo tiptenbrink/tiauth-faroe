@@ -1,15 +1,17 @@
-import * as faroe_client from "@faroe/client";
+import {
+  Client,
+  type ActionInvocationEndpointClient,
+  type Session,
+} from "@faroe/client";
 import { type CategoryEmailByType } from "../src/lib/server/smtp-server.ts";
 import { test, assert } from "vitest";
 import { UserClient } from "../src/lib/client.ts";
+import { faker } from "@faker-js/faker";
 
 const endpoint = "http://localhost:3777/";
 
-class ActionInvocationEndpointClient
-  implements faroe_client.ActionInvocationEndpointClient
-{
+class EndpointClient implements ActionInvocationEndpointClient {
   public async sendActionInvocationEndpointRequest(body: string) {
-    // Handle authentication, etc
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -25,9 +27,9 @@ class ActionInvocationEndpointClient
   }
 }
 
-const actionInvocationEndpointClient = new ActionInvocationEndpointClient();
+const actionInvocationEndpointClient = new EndpointClient();
 
-const client = new faroe_client.Client(actionInvocationEndpointClient);
+const client = new Client(actionInvocationEndpointClient);
 
 const testPass = "N9u1%e0!Bc*2*wQ$";
 
@@ -49,16 +51,19 @@ async function fetchVerificationCode<T extends "signup">(
   return emailData as CategoryEmailByType<T>;
 }
 
-test("signup", async () => {
-  await userClient.resetUsers();
-  await userClient.prepareUser("someuser@gmail.com", ["Some", "User"]);
+const testEmail = "someuser@gmail.com";
 
-  const r = await client.createSignup("someuser@gmail.com");
+// Tests are run in sequence (https://vitest.dev/guide/parallelism.html#file-parallelism)
+
+test("signup", async () => {
+  await userClient.prepareUser(testEmail, ["Some", "User"]);
+
+  const r = await client.createSignup(testEmail);
   assert(r.ok);
 
   const token = r.signupToken;
 
-  const emailData = await fetchVerificationCode("someuser@gmail.com", "signup");
+  const emailData = await fetchVerificationCode(testEmail, "signup");
   const code = emailData.data.code;
 
   const r2 = await client.verifySignupEmailAddressVerificationCode(token, code);
@@ -71,15 +76,103 @@ test("signup", async () => {
   assert(rend.ok);
 });
 
-// async function testSignin() {
-//   const r = await client.createSignin("someuser@gmail.com");
-//   if (!r.ok) {
-//     throw new Error(r.errorCode);
-//   }
-//   const r2 = await client.verifySigninUserPassword(r.signinToken, testPass);
-//   if (!r2.ok) {
-//     throw new Error(r2.errorCode);
-//   }
-//   const r3 = await client.completeSignin(r.signinToken);
-//   console.log(JSON.stringify(r3));
-// }
+test("signin", async () => {
+  const r = await client.createSignin(testEmail);
+  assert(r.ok);
+
+  const r2 = await client.verifySigninUserPassword(r.signinToken, testPass);
+  assert(r2.ok);
+
+  const r3 = await client.completeSignin(r.signinToken);
+  assert(r3.ok);
+});
+
+interface User {
+  firstname: string;
+  lastname: string;
+  email: string;
+}
+
+export const userTest = test.extend<{
+  user: User & { sessionToken: string; password: string };
+}>({
+  user: async ({}, use) => {
+    const firstname = faker.person.firstName();
+    const lastname = faker.person.lastName();
+    const email = faker.internet.email({
+      firstName: firstname,
+      lastName: lastname,
+    });
+    const password = faker.internet.password();
+    await userClient.prepareUser(email, [firstname, lastname]);
+
+    const r = await client.createSignup(email);
+    assert(r.ok);
+
+    const token = r.signupToken;
+
+    const emailData = await fetchVerificationCode(email, "signup");
+    const code = emailData.data.code;
+
+    const r2 = await client.verifySignupEmailAddressVerificationCode(
+      token,
+      code,
+    );
+    assert(r2.ok);
+
+    const r3 = await client.setSignupPassword(token, password);
+    assert(r3.ok);
+
+    const rend = await client.completeSignup(token);
+    assert(rend.ok);
+
+    await use({
+      firstname,
+      lastname,
+      email: email,
+      sessionToken: rend.sessionToken,
+      password,
+    });
+  },
+});
+
+async function signinUser(
+  email: string,
+  password: string,
+): Promise<Session & { token: string }> {
+  const r = await client.createSignin(email);
+  assert(r.ok);
+
+  const r2 = await client.verifySigninUserPassword(r.signinToken, password);
+  assert(r2.ok);
+
+  const r3 = await client.completeSignin(r.signinToken);
+  assert(r3.ok);
+
+  return { ...r3.session, token: r3.sessionToken };
+}
+
+userTest("session", async ({ user }) => {
+  const r = await client.getSession(user.sessionToken);
+  assert(r.ok);
+
+  const signinSession = await signinUser(user.email, user.password);
+
+  const r2 = await client.deleteSession(user.sessionToken);
+  assert(r2.ok);
+
+  const r3 = await client.getSession(user.sessionToken);
+  console.log(JSON.stringify(r3));
+  assert(!r3.ok);
+
+  const signinSession2 = await signinUser(user.email, user.password);
+  const r4 = await client.deleteAllSessions(signinSession.token);
+  assert(r4.ok, JSON.stringify(r4));
+
+  const [r5, r6] = await Promise.all([
+    client.getSession(signinSession.token),
+    client.getSession(signinSession2.token),
+  ]);
+  assert(!r5.ok);
+  assert(!r6.ok);
+});

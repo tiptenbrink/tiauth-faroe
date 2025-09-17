@@ -19,6 +19,10 @@ export interface SignupData {
   code: string;
 }
 
+export interface SigninDetectedData {
+  category: "signinDetected";
+}
+
 export interface CategoryEmail<Data> {
   mail: Email;
   data: Data;
@@ -34,15 +38,23 @@ export type CategoryEmailByType<T extends keyof CategoryDataMap> =
 interface Emails {
   to: string;
   signupMails: CategoryEmail<SignupData>[];
+  signinMails: CategoryEmail<SigninDetectedData>[];
 }
 
-function extractData(subject: string, text: string): SignupData | undefined {
+function extractData(
+  subject: string,
+  text: string,
+): SignupData | SigninDetectedData | undefined {
   if (subject === "Signup verification code") {
     const regex = /Your email address verification code is\s+(\w+)/i;
     const verificationCode = text.match(regex)?.[1];
     return {
       category: "signup",
       code: verificationCode!,
+    };
+  } else if (subject === "Sign-in detected") {
+    return {
+      category: "signinDetected",
     };
   }
   return undefined;
@@ -103,6 +115,7 @@ export class TestSMTPServer {
           mails = {
             to: toAddress,
             signupMails: [],
+            signinMails: [],
           };
           this.map.set(toAddress, mails);
         }
@@ -116,6 +129,11 @@ export class TestSMTPServer {
             data,
           });
           console.log(JSON.stringify([...this.map.values()]));
+        } else if (data.category === "signinDetected") {
+          mails.signinMails.push({
+            mail,
+            data,
+          });
         }
 
         callback();

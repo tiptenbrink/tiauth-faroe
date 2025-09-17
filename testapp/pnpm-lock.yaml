@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@faker-js/faker':
+        specifier: ^10.0.0
+        version: 10.0.0
       '@faroe/client':
         specifier: 0.1.0
         version: 0.1.0
@@ -318,6 +321,10 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@faker-js/faker@10.0.0':
+    resolution: {integrity: sha512-UollFEUkVXutsaP+Vndjxar40Gs5JL2HeLcl8xO1QAjJgOdhc3OmBFWyEylS+RddWaaBiAzH+5/17PLQJwDiLw==}
+    engines: {node: ^20.19.0 || ^22.13.0 || ^23.5.0 || >=24.0.0, npm: '>=10'}
 
   '@faroe/client@0.1.0':
     resolution: {integrity: sha512-/aw4hgqgvSMx5Mh+UeFupa7Dg5EH1oyB976LCLU+VjQpuj4dW8Fn8anHiGczKyVYNSJNArYuyGHB7GlqzKHptA==}
@@ -1460,6 +1467,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.25.9':
     optional: true
+
+  '@faker-js/faker@10.0.0': {}
 
   '@faroe/client@0.1.0': {}
 

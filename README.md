@@ -29,3 +29,7 @@ Options can be combined:
 ```
 CGO_ENABLED=1 CC="zig cc" CXX="zig cc" go run . --env-file=test.env --insecure --interactive
 ```
+
+
+TODO:
+- Do the channel errors all really work?
