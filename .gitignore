@@ -8,4 +8,5 @@ tiauth-faroe
 **/.ruff_cache
 **/.venv
 .env
+*.local
 notes.md

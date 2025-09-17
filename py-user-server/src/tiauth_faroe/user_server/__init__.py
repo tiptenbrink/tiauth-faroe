@@ -3,7 +3,7 @@ import json
 import base64
 import binascii
 from dataclasses import dataclass
-from typing import Generator, Union, Protocol, Dict, Any
+from typing import Generator, Union, Protocol, Dict, Any, TypeVar
 
 
 @dataclass
@@ -368,11 +368,12 @@ class AsyncServer(Protocol):
 def handle_request_sync(request_json_object: Any, server: SyncServer) -> ServerResult:
     generator = process_request_gen(request_json_object)
 
-    effect = next(generator)
-    result = server.execute_effect(effect)
     try:
+        effect = next(generator)
+        result = server.execute_effect(effect)
         generator.send(result)
     except StopIteration as e:
+        assert isinstance(e.value, ServerResult)
         return e.value
 
     raise Exception("We do not expect any yields after send!")
@@ -381,11 +382,12 @@ def handle_request_sync(request_json_object: Any, server: SyncServer) -> ServerR
 async def handle_request_async(request_json_object: Any, server: AsyncServer) -> ServerResult:
     generator = process_request_gen(request_json_object)
 
-    effect = next(generator)
-    result = await server.execute_effect(effect)
     try:
+        effect = next(generator)
+        result = await server.execute_effect(effect)
         generator.send(result)
     except StopIteration as e:
+        assert isinstance(e.value, ServerResult)
         return e.value
 
     raise Exception("We do not expect any yields after send!")

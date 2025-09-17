@@ -10,8 +10,10 @@ import (
 )
 
 type serverStruct struct {
-	server  *faroe.ServerStruct
-	errChan chan error
+	server      *faroe.ServerStruct
+	storage     *storageStruct
+	enableReset bool
+	errChan     chan error
 }
 
 func (server *serverStruct) listen(port string) {
@@ -59,6 +61,9 @@ func (server *serverStruct) handle(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(resultJSON))
+		return
+	} else if server.enableReset && r.Method == "POST" && r.URL.Path == "/reset" {
+		server.storage.Clear()
 		return
 	}
 

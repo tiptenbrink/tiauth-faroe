@@ -22,6 +22,7 @@ func main() {
 	interactive := flag.Bool("interactive", false, "Run in interactive mode with stdin commands")
 	noSmtpInit := flag.Bool("no-smtp-init", false, "Do not initialize SMTP connection on startup")
 	noKeepAlive := flag.Bool("no-keep-alive", false, "Do not run keep-alive routine")
+	enableReset := flag.Bool("enable-reset", false, "Enable request to /reset to clear storage")
 	flag.Parse()
 
 	// Load environment variables from specified env file
@@ -97,7 +98,7 @@ func main() {
 		},
 	)
 
-	server := &serverStruct{server: faroeServer}
+	server := &serverStruct{server: faroeServer, storage: storage, enableReset: *enableReset}
 	server.listen(port)
 	// TODO: probably should create separate connection for db
 	shell := NewInteractiveShell(storage)
