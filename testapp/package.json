@@ -11,15 +11,15 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "@faker-js/faker": "^10.0.0",
+    "@faker-js/faker": "10.0.0",
     "@faroe/client": "0.1.0",
     "@types/mailparser": "^3.4.6",
-    "@types/node": "^22.18.3",
+    "@types/node": "^22.18.4",
     "@types/smtp-server": "^3.5.12",
     "mailparser": "3.7.4",
     "smtp-server": "3.14.0",
-    "typescript": "5.9.2",
+    "typescript": "^5.9.2",
     "vite": "7.1.2",
-    "vitest": "^3.2.4"
+    "vitest": "3.2.4"
   }
 }

@@ -38,6 +38,8 @@ jobs:
         with:
           enable-cache: true
           version: "0.8.17"
+          working-directory: ./py-user-server
+          prune-cache: false
 
       - name: Install testapp dependencies
         working-directory: ./testapp
@@ -45,7 +47,7 @@ jobs:
 
       - name: Sync Python dependencies
         working-directory: ./py-user-server/sync
-        run: uv sync
+        run: uv sync --frozen
 
       - name: Build Go dependencies
         run: |
