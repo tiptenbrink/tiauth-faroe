@@ -11,9 +11,13 @@ dependencies = []
 
 [tool.uv.sources]
 
+[build-system]
+requires = ["uv_build>=0.8.15,<0.9.0"]
+build-backend = "uv_build"
+
 [tool.uv.workspace]
 members = [
-    "sync",
+    "sync-server",
     "data",
     "lib",
     "client"

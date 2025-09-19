@@ -1,0 +1,28 @@
+[project]
+name = "sync-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "data",
+    "tiauth_faroe.user_server",
+    "tiauth_faroe.client"
+]
+
+
+[tool.uv.sources]
+data = { workspace = true }
+"tiauth_faroe.user_server" = { workspace = true }
+"tiauth_faroe.client" = { workspace = true }
+
+
+[build-system]
+requires = ["uv_build>=0.8.15,<0.9.0"]
+build-backend = "uv_build"
+
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.31.4",
+]
