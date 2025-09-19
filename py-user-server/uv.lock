@@ -7,6 +7,7 @@ members = [
     "data",
     "py-user-server-ref",
     "sync-server",
+    "tiauth-faroe-client",
     "tiauth-faroe-user-server",
 ]
 
@@ -88,7 +89,7 @@ wheels = [
 [[package]]
 name = "py-user-server-ref"
 version = "0.1.0"
-source = { editable = "." }
+source = { virtual = "." }
 
 [[package]]
 name = "pygments"
@@ -146,6 +147,21 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "data", editable = "data" }]
+
+[[package]]
+name = "tiauth-faroe-client"
+version = "0.1.0"
+source = { editable = "client" }
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.4.2" }]
 
 [[package]]
 name = "tiauth-faroe-user-server"
