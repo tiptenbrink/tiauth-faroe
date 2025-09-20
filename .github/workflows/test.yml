@@ -46,7 +46,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Sync Python dependencies
-        working-directory: ./py-user-server/sync
+        working-directory: ./py-user-server/sync-server
         run: uv sync --frozen
 
       - name: Build Go dependencies
@@ -76,7 +76,7 @@ jobs:
           done
 
       - name: Start Python user server
-        working-directory: ./py-user-server/sync
+        working-directory: ./py-user-server/sync-server
         run: |
           nohup uv run main.py > ../../python_server.log 2>&1 &
           echo $! > ../../python_server.pid

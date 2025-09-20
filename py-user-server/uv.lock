@@ -5,7 +5,7 @@ requires-python = ">=3.13"
 [manifest]
 members = [
     "data",
-    "py-user-server-ref",
+    "py-user-server",
     "sync-server",
     "tiauth-faroe-client",
     "tiauth-faroe-user-server",
@@ -115,7 +115,7 @@ wheels = [
 ]
 
 [[package]]
-name = "py-user-server-ref"
+name = "py-user-server"
 version = "0.1.0"
 source = { editable = "." }
 
@@ -168,7 +168,7 @@ wheels = [
 [[package]]
 name = "sync-server"
 version = "0.1.0"
-source = { editable = "sync" }
+source = { editable = "sync-server" }
 dependencies = [
     { name = "data" },
     { name = "tiauth-faroe-client" },
