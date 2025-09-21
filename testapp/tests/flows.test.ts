@@ -91,6 +91,7 @@ test("signin", async () => {
 
   const r3 = await client.completeSignin(r.signinToken);
   assert(r3.ok);
+  console.log(`token for ${r3.session.userId}: ${r3.sessionToken}`);
 });
 
 interface User {

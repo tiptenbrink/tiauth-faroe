@@ -110,8 +110,8 @@ def parse_action_invocation_response(response: JSONValue) -> ActionResult:
 class Session:
     id: str
     user_id: str
-    created_at: datetime
-    expires_at: datetime | None
+    created_at: int
+    expires_at: int | None
 
 
 @dataclass
@@ -129,20 +129,16 @@ def map_json_object_to_session(json_object: JSONDict) -> Session:
     created_at_timestamp = validate_int_argument("created_at", json_object)
     if created_at_timestamp < 0:
         raise ValueError("Invalid 'created_at' field: negative timestamp")
-    created_at = datetime.fromtimestamp(created_at_timestamp)
 
     expires_at_timestamp = validate_optional_int_argument("expires_at", json_object)
-    expires_at: datetime | None = None
-    if expires_at_timestamp is not None:
-        if expires_at_timestamp <= 0:
+    if expires_at_timestamp is not None and expires_at_timestamp <= 0:
             raise ValueError("Invalid 'expires_at' field: non-positive timestamp")
-        expires_at = datetime.fromtimestamp(expires_at_timestamp)
 
     return Session(
         id=session_id,
         user_id=user_id,
-        created_at=created_at,
-        expires_at=expires_at
+        created_at=created_at_timestamp,
+        expires_at=expires_at_timestamp
     )
 
 
