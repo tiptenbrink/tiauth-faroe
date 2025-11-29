@@ -4,8 +4,7 @@ export class UserClient {
   constructor(base: string) {
     this.base = base;
   }
-
-  async sendRequest<T>(endpoint: string, o: object): Promise<T> {
+  async sendRequest(endpoint: string, o: object): Promise<Response> {
     const response = await fetch(this.base + endpoint, {
       method: "POST",
       headers: {
@@ -18,7 +17,7 @@ export class UserClient {
       throw new Error(`status: ${response.status}`);
     }
 
-    return (await response.json()) as T;
+    return response;
   }
 
   async resetUsers() {

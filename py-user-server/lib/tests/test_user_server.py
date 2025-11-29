@@ -215,7 +215,9 @@ class TestGetUserByEmailAddress:
         )
         handle_request_sync(create_request, db)
 
-        get_request = make_request("get_user_by_email_address", email_address="test@example.com")
+        get_request = make_request(
+            "get_user_by_email_address", email_address="test@example.com"
+        )
         result = handle_request_sync(get_request, db)
 
         assert result.error is None
@@ -224,7 +226,9 @@ class TestGetUserByEmailAddress:
         assert response["values"]["user"]["email_address"] == "test@example.com"
 
     def test_get_user_by_email_not_found(self, db):
-        request_body = make_request("get_user_by_email_address", email_address="nonexistent@example.com")
+        request_body = make_request(
+            "get_user_by_email_address", email_address="nonexistent@example.com"
+        )
         result = handle_request_sync(request_body, db)
 
         response = json.loads(result.response_json)

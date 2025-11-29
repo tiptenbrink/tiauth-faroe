@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"text/template"
 	"time"
 
 	"github.com/faroedev/faroe"
@@ -23,6 +24,7 @@ func main() {
 	noSmtpInit := flag.Bool("no-smtp-init", false, "Do not initialize SMTP connection on startup")
 	noKeepAlive := flag.Bool("no-keep-alive", false, "Do not run keep-alive routine")
 	enableReset := flag.Bool("enable-reset", false, "Enable request to /reset to clear storage")
+	emailTemplatesPath := flag.String("email-templates", "", "Path to email templates directory")
 	flag.Parse()
 
 	// Load environment variables from specified env file
@@ -64,11 +66,23 @@ func main() {
 		domain:           smtpDomain,
 		security:         smtpSecurity,
 		disableKeepAlive: *noKeepAlive,
+		templatesPath:    *emailTemplatesPath,
 	}
 	var emailSender *smtpActionsEmailSender
 
+	// Load email templates if path is provided
+	var templates *template.Template
+	if *emailTemplatesPath != "" {
+		templates, err = loadEmailTemplates(*emailTemplatesPath)
+		if err != nil {
+			log.Fatalf("failed to load email templates: %v", err)
+		}
+		log.Printf("Loaded email templates from %s", *emailTemplatesPath)
+	}
+
 	emailSender = &smtpActionsEmailSender{
-		config: emailConfig,
+		config:    emailConfig,
+		templates: templates,
 	}
 	if *noSmtpInit {
 		// Don't initialize

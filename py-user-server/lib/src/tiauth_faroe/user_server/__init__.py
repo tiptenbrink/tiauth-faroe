@@ -238,7 +238,11 @@ def serialize_user_result(action_invocation_id: str, user: User) -> str:
 
 
 def serialize_empty_result(action_invocation_id: str) -> str:
-    result_json_object = {"ok": True, "action_invocation_id": action_invocation_id, "values": {}}
+    result_json_object = {
+        "ok": True,
+        "action_invocation_id": action_invocation_id,
+        "values": {},
+    }
     return json.dumps(result_json_object)
 
 
@@ -353,7 +357,7 @@ def process_request_gen(
     else:
         return ServerResult(
             serialize_error_result(action_invocation_id, result.error_code),
-            result.error_code
+            result.error_code,
         )
 
 
@@ -379,7 +383,9 @@ def handle_request_sync(request_json_object: Any, server: SyncServer) -> ServerR
     raise Exception("We do not expect any yields after send!")
 
 
-async def handle_request_async(request_json_object: Any, server: AsyncServer) -> ServerResult:
+async def handle_request_async(
+    request_json_object: Any, server: AsyncServer
+) -> ServerResult:
     generator = process_request_gen(request_json_object)
 
     try:

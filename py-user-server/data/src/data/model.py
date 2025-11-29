@@ -1,7 +1,6 @@
+from dataclasses import dataclass
 
 import sqlalchemy as sqla
-from typing import TypedDict
-from dataclasses import dataclass
 
 # Helps name constraints
 convention = {
@@ -13,6 +12,7 @@ convention = {
 }
 
 metadata = sqla.MetaData(naming_convention=convention)
+
 
 @dataclass(frozen=True)
 class UserTable:
@@ -29,22 +29,25 @@ class UserTable:
     DISABLED_COUNTER = "disabled_counter"
     SESSIONS_COUNTER = "sessions_counter"
 
+
 users = sqla.Table(
     UserTable.NAME,
     metadata,
     sqla.Column(UserTable.ID, sqla.Text, primary_key=True),
-    sqla.Column(
-        UserTable.EMAIL, sqla.Text, unique=True, nullable=False, index=True
-    ),
+    sqla.Column(UserTable.EMAIL, sqla.Text, unique=True, nullable=False, index=True),
     sqla.Column(UserTable.DISPLAY_NAME, sqla.Text, nullable=False),
     sqla.Column(UserTable.PASSWORD_HASH, sqla.LargeBinary, nullable=False),
     sqla.Column(UserTable.PASSWORD_SALT, sqla.LargeBinary, nullable=False),
     sqla.Column(UserTable.PASSWORD_HASH_ALGORITHM_ID, sqla.Text, nullable=False),
     sqla.Column(UserTable.DISABLED, sqla.Integer, nullable=False, default=0),
-    sqla.Column(UserTable.EMAIL_ADDRESS_COUNTER, sqla.Integer, nullable=False, default=0),
-    sqla.Column(UserTable.PASSWORD_HASH_COUNTER, sqla.Integer, nullable=False, default=0),
+    sqla.Column(
+        UserTable.EMAIL_ADDRESS_COUNTER, sqla.Integer, nullable=False, default=0
+    ),
+    sqla.Column(
+        UserTable.PASSWORD_HASH_COUNTER, sqla.Integer, nullable=False, default=0
+    ),
     sqla.Column(UserTable.DISABLED_COUNTER, sqla.Integer, nullable=False, default=0),
     sqla.Column(UserTable.SESSIONS_COUNTER, sqla.Integer, nullable=False, default=0),
     sqlite_with_rowid=False,
-    sqlite_strict=True
+    sqlite_strict=True,
 )

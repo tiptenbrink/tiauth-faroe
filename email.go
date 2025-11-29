@@ -1,14 +1,22 @@
 package main
 
 import (
+	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"log"
+	"mime/multipart"
 	"net"
 	"net/smtp"
+	"net/textproto"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 )
 
@@ -65,14 +73,56 @@ type smtpConfig struct {
 	security SMTPSecurity
 	// Disable keepAlive, if unset defaults to false (keepAlive enabled)
 	disableKeepAlive bool
+	// Path to email templates directory (optional)
+	templatesPath string
 }
 
 type smtpActionsEmailSender struct {
-	client   *smtp.Client
-	config   *smtpConfig
-	m        sync.Mutex
-	stopChan chan bool
-	errChan  chan error
+	client    *smtp.Client
+	config    *smtpConfig
+	templates *template.Template
+	m         sync.Mutex
+	stopChan  chan bool
+	errChan   chan error
+}
+
+func loadEmailTemplates(templatesPath string) (*template.Template, error) {
+	if templatesPath == "" {
+		return nil, nil
+	}
+
+	// Check if directory exists
+	if _, err := os.Stat(templatesPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("templates directory does not exist: %s", templatesPath)
+	}
+
+	tmpl := template.New("")
+
+	// Find all .txt and .html files in the templates directory
+	pattern := filepath.Join(templatesPath, "*")
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list template files: %v", err)
+	}
+
+	for _, file := range files {
+		ext := filepath.Ext(file)
+		if ext == ".txt" || ext == ".html" {
+			content, err := os.ReadFile(file)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read template file %s: %v", file, err)
+			}
+
+			// Use the base name (without extension) as the template name
+			baseName := filepath.Base(file)
+			_, err = tmpl.New(baseName).Parse(string(content))
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse template %s: %v", file, err)
+			}
+		}
+	}
+
+	return tmpl, nil
 }
 
 func createConnectedSmtpClient(config *smtpConfig) (*smtp.Client, error) {
@@ -128,8 +178,21 @@ func generateMessageID(senderEmail, receiverEmail, body string, time string, dom
 	return fmt.Sprintf("<%s@%s>", hashStr, domain)
 }
 
+// generateBoundary creates a random boundary for multipart MIME messages
+func generateBoundary() string {
+	var buf [16]byte
+	rand.Read(buf[:])
+	return "boundary_" + hex.EncodeToString(buf[:])
+}
+
 // receiverName can be empty string, in which case the email is used.
+// body is used for plain text, htmlBody is optional for HTML version
 func (emailSender *smtpActionsEmailSender) SendEmail(receiverName string, receiverEmail string, subject string, body string) error {
+	return emailSender.SendEmailWithHTML(receiverName, receiverEmail, subject, body, "")
+}
+
+// SendEmailWithHTML sends an email with both plain text and HTML parts
+func (emailSender *smtpActionsEmailSender) SendEmailWithHTML(receiverName string, receiverEmail string, subject string, body string, htmlBody string) error {
 	var fromHeader, toHeader string
 
 	if emailSender.config.senderName != "" {
@@ -147,17 +210,58 @@ func (emailSender *smtpActionsEmailSender) SendEmail(receiverName string, receiv
 	date := time.Now().Format(time.RFC1123Z)
 	messageId := generateMessageID(emailSender.config.senderEmail, receiverEmail, body, date, emailSender.config.domain)
 
-	headers := []string{
-		fmt.Sprintf("From: %s", fromHeader),
-		fmt.Sprintf("To: %s", toHeader),
-		fmt.Sprintf("Subject: %s", subject),
-		fmt.Sprintf("Date: %s", date),
-		fmt.Sprintf("Message-ID: %s", messageId),
-		"MIME-Version: 1.0",
-		"Content-Type: text/plain; charset=UTF-8",
-	}
+	var message string
 
-	message := strings.Join(headers, "\r\n") + "\r\n\r\n" + body
+	if htmlBody != "" {
+		// Create multipart/alternative message with both text and HTML
+		boundary := generateBoundary()
+
+		headers := []string{
+			fmt.Sprintf("From: %s", fromHeader),
+			fmt.Sprintf("To: %s", toHeader),
+			fmt.Sprintf("Subject: %s", subject),
+			fmt.Sprintf("Date: %s", date),
+			fmt.Sprintf("Message-ID: %s", messageId),
+			"MIME-Version: 1.0",
+			fmt.Sprintf("Content-Type: multipart/alternative; boundary=\"%s\"", boundary),
+		}
+
+		var buf bytes.Buffer
+		buf.WriteString(strings.Join(headers, "\r\n"))
+		buf.WriteString("\r\n\r\n")
+
+		// Create multipart writer
+		writer := multipart.NewWriter(&buf)
+		writer.SetBoundary(boundary)
+
+		// Add plain text part
+		textHeader := textproto.MIMEHeader{}
+		textHeader.Set("Content-Type", "text/plain; charset=UTF-8")
+		textPart, _ := writer.CreatePart(textHeader)
+		textPart.Write([]byte(body))
+
+		// Add HTML part
+		htmlHeader := textproto.MIMEHeader{}
+		htmlHeader.Set("Content-Type", "text/html; charset=UTF-8")
+		htmlPart, _ := writer.CreatePart(htmlHeader)
+		htmlPart.Write([]byte(htmlBody))
+
+		writer.Close()
+		message = buf.String()
+	} else {
+		// Simple plain text message
+		headers := []string{
+			fmt.Sprintf("From: %s", fromHeader),
+			fmt.Sprintf("To: %s", toHeader),
+			fmt.Sprintf("Subject: %s", subject),
+			fmt.Sprintf("Date: %s", date),
+			fmt.Sprintf("Message-ID: %s", messageId),
+			"MIME-Version: 1.0",
+			"Content-Type: text/plain; charset=UTF-8",
+		}
+
+		message = strings.Join(headers, "\r\n") + "\r\n\r\n" + body
+	}
 
 	emailSender.m.Lock()
 	defer emailSender.m.Unlock()
@@ -236,50 +340,201 @@ func makeGreeting(displayName string) string {
 	}
 }
 
+// renderTemplate renders a template with the given data, returns empty string if template doesn't exist
+func (emailSender *smtpActionsEmailSender) renderTemplate(templateName string, data any) (string, error) {
+	if emailSender.templates == nil {
+		return "", nil
+	}
+
+	tmpl := emailSender.templates.Lookup(templateName)
+	if tmpl == nil {
+		return "", nil
+	}
+
+	var buf bytes.Buffer
+	err := tmpl.Execute(&buf, data)
+	if err != nil {
+		return "", fmt.Errorf("failed to render template %s: %v", templateName, err)
+	}
+
+	return buf.String(), nil
+}
+
 func (emailSender *smtpActionsEmailSender) SendSignupEmailAddressVerificationCode(emailAddress string, emailAddressVerificationCode string) error {
 	subject := "Signup verification code"
-	body := fmt.Sprintf("Your email address verification code is %s.", emailAddressVerificationCode)
-	return emailSender.SendEmail("", emailAddress, subject, body)
+
+	data := map[string]any{
+		"EmailAddress":     emailAddress,
+		"VerificationCode": emailAddressVerificationCode,
+	}
+
+	// Try to render templates
+	textBody, err := emailSender.renderTemplate("signup_verification.txt", data)
+	if err != nil {
+		return err
+	}
+	htmlBody, err := emailSender.renderTemplate("signup_verification.html", data)
+	if err != nil {
+		return err
+	}
+
+	// Fallback to hardcoded message if no templates found
+	if textBody == "" {
+		textBody = fmt.Sprintf("Your email address verification code is %s.", emailAddressVerificationCode)
+	}
+
+	return emailSender.SendEmailWithHTML("", emailAddress, subject, textBody, htmlBody)
 }
 
 func (emailSender *smtpActionsEmailSender) SendUserEmailAddressUpdateEmailVerificationCode(emailAddress string, displayName string, emailAddressVerificationCode string) error {
 	subject := "Email update verification code"
-	greeting := makeGreeting(displayName)
-	codeMessage := fmt.Sprintf("You have made a request to update your email. Your verification code is %s.", emailAddressVerificationCode)
-	body := fmt.Sprintf("%s\n\n%s", greeting, codeMessage)
-	return emailSender.SendEmail(displayName, emailAddress, subject, body)
+
+	data := map[string]any{
+		"EmailAddress":     emailAddress,
+		"DisplayName":      displayName,
+		"VerificationCode": emailAddressVerificationCode,
+		"Greeting":         makeGreeting(displayName),
+	}
+
+	// Try to render templates
+	textBody, err := emailSender.renderTemplate("email_update_verification.txt", data)
+	if err != nil {
+		return err
+	}
+	htmlBody, err := emailSender.renderTemplate("email_update_verification.html", data)
+	if err != nil {
+		return err
+	}
+
+	// Fallback to hardcoded message if no templates found
+	if textBody == "" {
+		greeting := makeGreeting(displayName)
+		codeMessage := fmt.Sprintf("You have made a request to update your email. Your verification code is %s.", emailAddressVerificationCode)
+		textBody = fmt.Sprintf("%s\n\n%s", greeting, codeMessage)
+	}
+
+	return emailSender.SendEmailWithHTML(displayName, emailAddress, subject, textBody, htmlBody)
 }
 
 func (emailSender *smtpActionsEmailSender) SendUserPasswordResetTemporaryPassword(emailAddress string, displayName string, temporaryPassword string) error {
 	subject := "Password reset temporary password"
-	greeting := makeGreeting(displayName)
-	passwordMessage := fmt.Sprintf("Your password reset temporary password is %s.", temporaryPassword)
-	body := fmt.Sprintf("%s\n\n%s", greeting, passwordMessage)
-	return emailSender.SendEmail(displayName, emailAddress, subject, body)
+
+	data := map[string]any{
+		"EmailAddress":      emailAddress,
+		"DisplayName":       displayName,
+		"TemporaryPassword": temporaryPassword,
+		"Greeting":          makeGreeting(displayName),
+	}
+
+	// Try to render templates
+	textBody, err := emailSender.renderTemplate("password_reset.txt", data)
+	if err != nil {
+		return err
+	}
+	htmlBody, err := emailSender.renderTemplate("password_reset.html", data)
+	if err != nil {
+		return err
+	}
+
+	// Fallback to hardcoded message if no templates found
+	if textBody == "" {
+		greeting := makeGreeting(displayName)
+		passwordMessage := fmt.Sprintf("Your password reset temporary password is %s.", temporaryPassword)
+		textBody = fmt.Sprintf("%s\n\n%s", greeting, passwordMessage)
+	}
+
+	return emailSender.SendEmailWithHTML(displayName, emailAddress, subject, textBody, htmlBody)
 }
 
 func (emailSender *smtpActionsEmailSender) SendUserSignedInNotification(emailAddress string, displayName string, time time.Time) error {
 	subject := "Sign-in detected"
-	greeting := makeGreeting(displayName)
-	notificationMessage := fmt.Sprintf("We detected a sign-in to your account at %s (UTC).", time.UTC().Format("January 2, 2006 15:04:05"))
-	body := fmt.Sprintf("%s\n\n%s", greeting, notificationMessage)
-	return emailSender.SendEmail(displayName, emailAddress, subject, body)
+
+	data := map[string]any{
+		"EmailAddress": emailAddress,
+		"DisplayName":  displayName,
+		"Time":         time.UTC().Format("January 2, 2006 15:04:05"),
+		"Greeting":     makeGreeting(displayName),
+	}
+
+	// Try to render templates
+	textBody, err := emailSender.renderTemplate("signin_notification.txt", data)
+	if err != nil {
+		return err
+	}
+	htmlBody, err := emailSender.renderTemplate("signin_notification.html", data)
+	if err != nil {
+		return err
+	}
+
+	// Fallback to hardcoded message if no templates found
+	if textBody == "" {
+		greeting := makeGreeting(displayName)
+		notificationMessage := fmt.Sprintf("We detected a sign-in to your account at %s (UTC).", time.UTC().Format("January 2, 2006 15:04:05"))
+		textBody = fmt.Sprintf("%s\n\n%s", greeting, notificationMessage)
+	}
+
+	return emailSender.SendEmailWithHTML(displayName, emailAddress, subject, textBody, htmlBody)
 }
 
 func (emailSender *smtpActionsEmailSender) SendUserPasswordUpdatedNotification(emailAddress string, displayName string, time time.Time) error {
 	subject := "Password updated"
-	greeting := makeGreeting(displayName)
-	notificationMessage := fmt.Sprintf("Your account password was updated at %s (UTC).", time.UTC().Format("January 2, 2006 15:04:05"))
-	body := fmt.Sprintf("%s\n\n%s", greeting, notificationMessage)
-	return emailSender.SendEmail(displayName, emailAddress, subject, body)
+
+	data := map[string]any{
+		"EmailAddress": emailAddress,
+		"DisplayName":  displayName,
+		"Time":         time.UTC().Format("January 2, 2006 15:04:05"),
+		"Greeting":     makeGreeting(displayName),
+	}
+
+	// Try to render templates
+	textBody, err := emailSender.renderTemplate("password_updated_notification.txt", data)
+	if err != nil {
+		return err
+	}
+	htmlBody, err := emailSender.renderTemplate("password_updated_notification.html", data)
+	if err != nil {
+		return err
+	}
+
+	// Fallback to hardcoded message if no templates found
+	if textBody == "" {
+		greeting := makeGreeting(displayName)
+		notificationMessage := fmt.Sprintf("Your account password was updated at %s (UTC).", time.UTC().Format("January 2, 2006 15:04:05"))
+		textBody = fmt.Sprintf("%s\n\n%s", greeting, notificationMessage)
+	}
+
+	return emailSender.SendEmailWithHTML(displayName, emailAddress, subject, textBody, htmlBody)
 }
 
 func (emailSender *smtpActionsEmailSender) SendUserEmailAddressUpdatedNotification(emailAddress string, displayName string, newEmailAddress string, time time.Time) error {
 	subject := "Email updated"
-	greeting := makeGreeting(displayName)
-	notificationMessage := fmt.Sprintf("Your account email address was updated to %s at %s (UTC).", newEmailAddress, time.UTC().Format("January 2, 2006 15:04:05"))
-	body := fmt.Sprintf("%s\n\n%s", greeting, notificationMessage)
-	return emailSender.SendEmail(displayName, emailAddress, subject, body)
+
+	data := map[string]any{
+		"EmailAddress":    emailAddress,
+		"DisplayName":     displayName,
+		"NewEmailAddress": newEmailAddress,
+		"Time":            time.UTC().Format("January 2, 2006 15:04:05"),
+		"Greeting":        makeGreeting(displayName),
+	}
+
+	// Try to render templates
+	textBody, err := emailSender.renderTemplate("email_updated_notification.txt", data)
+	if err != nil {
+		return err
+	}
+	htmlBody, err := emailSender.renderTemplate("email_updated_notification.html", data)
+	if err != nil {
+		return err
+	}
+
+	// Fallback to hardcoded message if no templates found
+	if textBody == "" {
+		greeting := makeGreeting(displayName)
+		notificationMessage := fmt.Sprintf("Your account email address was updated to %s at %s (UTC).", newEmailAddress, time.UTC().Format("January 2, 2006 15:04:05"))
+		textBody = fmt.Sprintf("%s\n\n%s", greeting, notificationMessage)
+	}
+
+	return emailSender.SendEmailWithHTML(displayName, emailAddress, subject, textBody, htmlBody)
 }
 
 // NOTE: Mutex is not unlocked in case of error!

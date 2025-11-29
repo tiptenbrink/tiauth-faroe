@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from collections.abc import Generator
 from dataclasses import dataclass
 from typing import cast
-from collections.abc import Generator
 
-JSONValue = dict[str, 'JSONValue'] | list['JSONValue'] | str | int | float | bool | None
+JSONValue = dict[str, "JSONValue"] | list["JSONValue"] | str | int | float | bool | None
 
 JSONDict = dict[str, JSONValue]
+
 
 def loads_typed(s: str) -> JSONValue:
     return cast(JSONValue, json.loads(s))
@@ -62,7 +62,9 @@ def validate_bool_argument(argument: str, arguments_json_object: JSONDict) -> bo
     return value
 
 
-def validate_optional_int_argument(argument: str, arguments_json_object: JSONDict) -> int | None:
+def validate_optional_int_argument(
+    argument: str, arguments_json_object: JSONDict
+) -> int | None:
     if argument not in arguments_json_object:
         raise ValueError(f"Missing '{argument}' field")
 
@@ -76,16 +78,20 @@ def validate_optional_int_argument(argument: str, arguments_json_object: JSONDic
 
     return value
 
+
 @dataclass
 class ActionSuccessResult:
     action_invocation_id: str
     values: JSONDict
 
+
 @dataclass
 class ActionErrorResult:
     """Represents an error result from an action."""
+
     action_invocation_id: str
     error_code: str
+
 
 ActionResult = ActionSuccessResult | ActionErrorResult
 
@@ -132,21 +138,25 @@ def map_json_object_to_session(json_object: JSONDict) -> Session:
 
     expires_at_timestamp = validate_optional_int_argument("expires_at", json_object)
     if expires_at_timestamp is not None and expires_at_timestamp <= 0:
-            raise ValueError("Invalid 'expires_at' field: non-positive timestamp")
+        raise ValueError("Invalid 'expires_at' field: non-positive timestamp")
 
     return Session(
         id=session_id,
         user_id=user_id,
         created_at=created_at_timestamp,
-        expires_at=expires_at_timestamp
+        expires_at=expires_at_timestamp,
     )
 
 
-def get_session(session_token: str) -> Generator[dict[str, JSONValue], ActionResult, GetSessionActionSuccessResult | ActionErrorResult]:
+def get_session(
+    session_token: str,
+) -> Generator[
+    dict[str, JSONValue],
+    ActionResult,
+    GetSessionActionSuccessResult | ActionErrorResult,
+]:
     """Get session information for the given session token."""
-    arguments_object: JSONDict = {
-        "session_token": session_token
-    }
+    arguments_object: JSONDict = {"session_token": session_token}
 
     result = yield arguments_object
     if isinstance(result, ActionErrorResult):
@@ -158,6 +168,5 @@ def get_session(session_token: str) -> Generator[dict[str, JSONValue], ActionRes
     session = map_json_object_to_session(session_dict)
 
     return GetSessionActionSuccessResult(
-        action_invocation_id=result.action_invocation_id,
-        session=session
+        action_invocation_id=result.action_invocation_id, session=session
     )

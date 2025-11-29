@@ -23,13 +23,13 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: "10.17"
+          version: "10.24"
           run_install: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "pnpm"
           cache-dependency-path: "testapp/pnpm-lock.yaml"
 
@@ -37,7 +37,7 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-          version: "0.8.17"
+          version: "0.9.11"
           working-directory: ./py-user-server
           prune-cache: false
 

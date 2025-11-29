@@ -17,6 +17,7 @@ from tiauth_faroe.user_server import (
 )
 from .model import UserTable
 
+
 def check_integrity_error(e: IntegrityError, column: str, category: str) -> bool:
     """For column 'email' in table 'user', 'user.email' would be the column. For category, at least 'unique' works."""
     orig = e.orig
@@ -24,10 +25,11 @@ def check_integrity_error(e: IntegrityError, column: str, category: str) -> bool
     assert isinstance(orig.args[0], str)
     return column in orig.args[0] and category in orig.args[0].lower()
 
+
 def create_user(engine: Engine, effect: CreateUserEffect) -> EffectResult:
     try:
         with engine.begin() as conn:
-            email_prefix = effect.email_address.split('@')[0]
+            email_prefix = effect.email_address.split("@")[0]
 
             # Generate a unique user ID by finding the highest existing numeric prefix
             max_id_stmt = text(f"""
@@ -64,22 +66,25 @@ def create_user(engine: Engine, effect: CreateUserEffect) -> EffectResult:
                 )
             """)
 
-            conn.execute(stmt, {
-                "user_id": user_id,
-                "email_address": effect.email_address,
-                "display_name": "",
-                "password_hash": effect.password_hash,
-                "password_hash_algorithm_id": effect.password_hash_algorithm_id,
-                "password_salt": effect.password_salt,
-                "disabled": 0,
-                "email_address_counter": 0,
-                "password_hash_counter": 0,
-                "disabled_counter": 0,
-                "sessions_counter": 0,
-            })
+            conn.execute(
+                stmt,
+                {
+                    "user_id": user_id,
+                    "email_address": effect.email_address,
+                    "display_name": "",
+                    "password_hash": effect.password_hash,
+                    "password_hash_algorithm_id": effect.password_hash_algorithm_id,
+                    "password_salt": effect.password_salt,
+                    "disabled": 0,
+                    "email_address_counter": 0,
+                    "password_hash_counter": 0,
+                    "disabled_counter": 0,
+                    "sessions_counter": 0,
+                },
+            )
 
     except IntegrityError as e:
-        if check_integrity_error(e, 'user.email', 'unique'):
+        if check_integrity_error(e, "user.email", "unique"):
             return ActionError("email_address_already_used")
         else:
             return ActionError("unexpected_error")
@@ -138,7 +143,9 @@ def get_user(engine: Engine, effect: GetUserEffect) -> EffectResult:
     )
 
 
-def get_user_by_email_address(engine: Engine, effect: GetUserByEmailAddressEffect) -> EffectResult:
+def get_user_by_email_address(
+    engine: Engine, effect: GetUserByEmailAddressEffect
+) -> EffectResult:
     try:
         with engine.connect() as conn:
             stmt = text(f"""
@@ -175,7 +182,9 @@ def get_user_by_email_address(engine: Engine, effect: GetUserByEmailAddressEffec
     )
 
 
-def update_user_email_address(engine: Engine, effect: UpdateUserEmailAddressEffect) -> EffectResult:
+def update_user_email_address(
+    engine: Engine, effect: UpdateUserEmailAddressEffect
+) -> EffectResult:
     try:
         with engine.begin() as conn:
             stmt = text(f"""
@@ -186,11 +195,14 @@ def update_user_email_address(engine: Engine, effect: UpdateUserEmailAddressEffe
                   AND {UserTable.EMAIL_ADDRESS_COUNTER} = :user_email_address_counter
             """)
 
-            result = conn.execute(stmt, {
-                "email_address": effect.email_address,
-                "user_id": effect.user_id,
-                "user_email_address_counter": effect.user_email_address_counter,
-            })
+            result = conn.execute(
+                stmt,
+                {
+                    "email_address": effect.email_address,
+                    "user_id": effect.user_id,
+                    "user_email_address_counter": effect.user_email_address_counter,
+                },
+            )
 
     except SQLAlchemyError:
         return ActionError("unexpected_error")
@@ -201,7 +213,9 @@ def update_user_email_address(engine: Engine, effect: UpdateUserEmailAddressEffe
     return None
 
 
-def update_user_password_hash(engine: Engine, effect: UpdateUserPasswordHashEffect) -> EffectResult:
+def update_user_password_hash(
+    engine: Engine, effect: UpdateUserPasswordHashEffect
+) -> EffectResult:
     try:
         with engine.begin() as conn:
             stmt = text(f"""
@@ -214,13 +228,16 @@ def update_user_password_hash(engine: Engine, effect: UpdateUserPasswordHashEffe
                   AND {UserTable.PASSWORD_HASH_COUNTER} = :user_password_hash_counter
             """)
 
-            result = conn.execute(stmt, {
-                "password_hash": effect.password_hash,
-                "password_hash_algorithm_id": effect.password_hash_algorithm_id,
-                "password_salt": effect.password_salt,
-                "user_id": effect.user_id,
-                "user_password_hash_counter": effect.user_password_hash_counter,
-            })
+            result = conn.execute(
+                stmt,
+                {
+                    "password_hash": effect.password_hash,
+                    "password_hash_algorithm_id": effect.password_hash_algorithm_id,
+                    "password_salt": effect.password_salt,
+                    "user_id": effect.user_id,
+                    "user_password_hash_counter": effect.user_password_hash_counter,
+                },
+            )
 
     except SQLAlchemyError:
         return ActionError("unexpected_error")
@@ -231,7 +248,9 @@ def update_user_password_hash(engine: Engine, effect: UpdateUserPasswordHashEffe
     return None
 
 
-def increment_user_sessions_counter(engine: Engine, effect: IncrementUserSessionsCounterEffect) -> EffectResult:
+def increment_user_sessions_counter(
+    engine: Engine, effect: IncrementUserSessionsCounterEffect
+) -> EffectResult:
     try:
         with engine.begin() as conn:
             stmt = text(f"""
@@ -241,10 +260,13 @@ def increment_user_sessions_counter(engine: Engine, effect: IncrementUserSession
                   AND {UserTable.SESSIONS_COUNTER} = :user_sessions_counter
             """)
 
-            result = conn.execute(stmt, {
-                "user_id": effect.user_id,
-                "user_sessions_counter": effect.user_sessions_counter,
-            })
+            result = conn.execute(
+                stmt,
+                {
+                    "user_id": effect.user_id,
+                    "user_sessions_counter": effect.user_sessions_counter,
+                },
+            )
 
     except SQLAlchemyError:
         return ActionError("unexpected_error")
@@ -274,7 +296,6 @@ def delete_user(engine: Engine, effect: DeleteUserEffect) -> EffectResult:
     return None
 
 
-
 class SqliteSyncServer(SyncServer):
     def __init__(self, engine: Engine):
         self.engine = engine
@@ -297,7 +318,6 @@ class SqliteSyncServer(SyncServer):
             return delete_user(self.engine, effect)
         else:
             raise ValueError(f"Unknown effect type: {type(effect)}")
-
 
 
 def clear_all_users(engine: Engine):
