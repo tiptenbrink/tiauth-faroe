@@ -135,13 +135,19 @@ export class TestSMTPServer {
   port: number;
   httpPort: number;
   map: Map<string, Emails>;
+  consoleLogging: boolean;
 
-  constructor(port: number, httpPort: number = port + 1000) {
+  constructor(
+    port: number,
+    httpPort: number = port + 1000,
+    consoleLogging: boolean = false,
+  ) {
     this.port = port;
     this.httpPort = httpPort;
     this.map = new Map();
     this.server = null;
     this.httpServer = null;
+    this.consoleLogging = consoleLogging;
   }
 
   private handleEmail(
@@ -202,6 +208,21 @@ export class TestSMTPServer {
           mails[mailsKey].push({ mail, data });
         }
 
+        if (this.consoleLogging) {
+          console.log("\n=== Email Received ===");
+          console.log(`From: ${from.name} <${from.address}>`);
+          console.log(`To: ${to.name || ""} <${to.address}>`);
+          console.log(`Subject: ${subject}`);
+          console.log(`Category: ${data.category}`);
+          if ("code" in data) {
+            console.log(`Code: ${data.code}`);
+          }
+          if ("tempPassword" in data) {
+            console.log(`Temp Password: ${data.tempPassword}`);
+          }
+          console.log("=====================\n");
+        }
+
         callback();
       } catch (error) {
         console.error("Error parsing email:", error);
@@ -249,7 +270,6 @@ export class TestSMTPServer {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(mails.at(-1)));
       } else {
-        console.log("unknown request path");
         res.writeHead(404);
         res.end("Not found");
       }
@@ -288,7 +308,6 @@ export class TestSMTPServer {
     promises.push(
       new Promise<void>((resolve) => {
         this.httpServer!.close((err) => {
-          console.log("closed http!");
           if (err) console.error("HTTP server close error:", err);
           resolve();
         });
@@ -299,7 +318,6 @@ export class TestSMTPServer {
     promises.push(
       new Promise<void>((resolve) => {
         this.server!.close(() => {
-          console.log("closed smtp!");
           resolve();
         });
       }),

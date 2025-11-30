@@ -43,6 +43,7 @@ func main() {
 	smtpServerHost := getEnvWithMap(envMap, "FAROE_SMTP_SERVER_HOST")
 	smtpServerPort := getEnvWithMap(envMap, "FAROE_SMTP_SERVER_PORT")
 	smtpDomain := getEnvWithMap(envMap, "FAROE_SMTP_DOMAIN")
+	sessionExpirationStr := getEnvWithMapOptional(envMap, "FAROE_SESSION_EXPIRATION", "2160h") // Default: 90 days = 2160 hours
 
 	storage := newStorage(dbPath)
 	defer storage.Close()
@@ -96,6 +97,8 @@ func main() {
 	}
 	defer emailSender.Close()
 
+	sessionExpiration := parseDuration(sessionExpirationStr, 90*24*time.Hour)
+
 	faroeServer := faroe.NewServer(
 		storage,
 		userServerClient,
@@ -109,6 +112,7 @@ func main() {
 		faroe.SessionConfigStruct{
 			InactivityTimeout:     30 * 24 * time.Hour,
 			ActivityCheckInterval: time.Minute,
+			Expiration:            sessionExpiration,
 		},
 	)
 
@@ -141,4 +145,26 @@ func getEnvWithMap(envMap map[string]string, key string) string {
 	}
 	log.Fatalf("Required environment variable %s not found", key)
 	return ""
+}
+
+func getEnvWithMapOptional(envMap map[string]string, key string, defaultValue string) string {
+	if value, exists := envMap[key]; exists && value != "" {
+		return value
+	}
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+func parseDuration(value string, defaultValue time.Duration) time.Duration {
+	if value == "" {
+		return defaultValue
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		log.Printf("Warning: Invalid duration '%s', using default %v: %v", value, defaultValue, err)
+		return defaultValue
+	}
+	return duration
 }

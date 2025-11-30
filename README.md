@@ -40,6 +40,9 @@ TODO:
 
 ## Test suite
 
+TODO:
+- Add more negative tests, such as user_not_found being returned in case the counter is incorrect, etc.
+
 This distribution has been tested with a test suite that relies on the [`@faroe/client`](https://github.com/faroedev/js-client) JavaScript package. All major server actions work. Note that this distribution assumes that an _external_ user store is used.
 
 The test suite sets up a local SMTP server to test actions that require a verification code.

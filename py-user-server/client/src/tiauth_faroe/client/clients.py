@@ -3,8 +3,10 @@ from collections.abc import Generator, Awaitable
 from tiauth_faroe.client.logic import (
     ActionErrorResult,
     ActionResult,
+    CreateSignupActionSuccessResult,
     GetSessionActionSuccessResult,
     JSONValue,
+    create_signup,
     get_session,
     JSONDict,
     parse_action_invocation_response,
@@ -63,6 +65,15 @@ class SyncClient:
         response = self.send_action_invocation_request(action_request)
 
         return parse_action_invocation_response(response)
+
+    def create_signup(
+        self, email_address: str
+    ) -> CreateSignupActionSuccessResult | ActionErrorResult:
+        return send_gen_sync(
+            create_signup(email_address),
+            "create_signup",
+            self.manage_action_invocation_request,
+        )
 
     def get_session(
         self, session_token: str

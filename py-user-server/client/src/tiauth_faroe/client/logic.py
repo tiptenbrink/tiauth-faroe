@@ -113,6 +113,23 @@ def parse_action_invocation_response(response: JSONValue) -> ActionResult:
 
 
 @dataclass
+class Signup:
+    id: str
+    email_address: str
+    email_address_verified: bool
+    password_set: bool
+    created_at: int
+    expires_at: int
+
+
+@dataclass
+class CreateSignupActionSuccessResult:
+    action_invocation_id: str
+    signup: Signup
+    signup_token: str
+
+
+@dataclass
 class Session:
     id: str
     user_id: str
@@ -124,6 +141,33 @@ class Session:
 class GetSessionActionSuccessResult:
     action_invocation_id: str
     session: Session
+
+
+def map_json_object_to_signup(json_object: JSONDict) -> Signup:
+    """Convert a JSON object to a Signup instance."""
+    signup_id = validate_str_argument("id", json_object)
+    email_address = validate_str_argument("email_address", json_object)
+    email_address_verified = validate_bool_argument(
+        "email_address_verified", json_object
+    )
+    password_set = validate_bool_argument("password_set", json_object)
+
+    created_at_timestamp = validate_int_argument("created_at", json_object)
+    if created_at_timestamp < 0:
+        raise ValueError("Invalid 'created_at' field: negative timestamp")
+
+    expires_at_timestamp = validate_int_argument("expires_at", json_object)
+    if expires_at_timestamp <= 0:
+        raise ValueError("Invalid 'expires_at' field: non-positive timestamp")
+
+    return Signup(
+        id=signup_id,
+        email_address=email_address,
+        email_address_verified=email_address_verified,
+        password_set=password_set,
+        created_at=created_at_timestamp,
+        expires_at=expires_at_timestamp,
+    )
 
 
 def map_json_object_to_session(json_object: JSONDict) -> Session:
@@ -145,6 +189,34 @@ def map_json_object_to_session(json_object: JSONDict) -> Session:
         user_id=user_id,
         created_at=created_at_timestamp,
         expires_at=expires_at_timestamp,
+    )
+
+
+def create_signup(
+    email_address: str,
+) -> Generator[
+    dict[str, JSONValue],
+    ActionResult,
+    CreateSignupActionSuccessResult | ActionErrorResult,
+]:
+    """Create a signup for the given email address."""
+    arguments_object: JSONDict = {"email_address": email_address}
+
+    result = yield arguments_object
+    if isinstance(result, ActionErrorResult):
+        return result
+
+    values_json_object = result.values
+
+    signup_dict = validate_dict_argument("signup", values_json_object)
+    signup = map_json_object_to_signup(signup_dict)
+
+    signup_token = validate_str_argument("signup_token", values_json_object)
+
+    return CreateSignupActionSuccessResult(
+        action_invocation_id=result.action_invocation_id,
+        signup=signup,
+        signup_token=signup_token,
     )
 
 
