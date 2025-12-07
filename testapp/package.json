@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "smtp": "node scripts/run-smtp-server.ts"
+    "smtp": "node scripts/run-smtp-server.ts",
+    "create-admin": "node scripts/create-admin.ts"
   },
   "devDependencies": {
     "@faker-js/faker": "10.0.0",
