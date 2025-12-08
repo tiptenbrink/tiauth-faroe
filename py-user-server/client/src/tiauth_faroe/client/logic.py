@@ -82,7 +82,7 @@ def validate_optional_int_argument(
 @dataclass
 class ActionSuccessResult:
     action_invocation_id: str
-    ok: Literal[True]
+    ok: Literal[True] = True
 
 
 @dataclass
@@ -91,9 +91,7 @@ class ActionParseSuccessResult:
     values: JSONDict | None
 
     def as_success(self) -> ActionSuccessResult:
-        return ActionSuccessResult(
-            action_invocation_id=self.action_invocation_id, ok=True
-        )
+        return ActionSuccessResult(action_invocation_id=self.action_invocation_id)
 
 
 @dataclass
@@ -146,7 +144,7 @@ class Signup:
 
 
 @dataclass
-class CreateSignupActionSuccessResult(ActionSuccessResult):
+class CreateSignupActionSuccessResult:
     action_invocation_id: str
     signup: Signup
     signup_token: str
@@ -162,14 +160,14 @@ class Session:
 
 
 @dataclass
-class GetSessionActionSuccessResult(ActionSuccessResult):
+class GetSessionActionSuccessResult:
     action_invocation_id: str
     session: Session
     ok: Literal[True] = True
 
 
 @dataclass
-class CompleteSignupActionSuccessResult(ActionSuccessResult):
+class CompleteSignupActionSuccessResult:
     action_invocation_id: str
     session: Session
     session_token: str
@@ -186,7 +184,7 @@ class Signin:
 
 
 @dataclass
-class CreateSigninActionSuccessResult(ActionSuccessResult):
+class CreateSigninActionSuccessResult:
     action_invocation_id: str
     signin: Signin
     signin_token: str
@@ -194,7 +192,7 @@ class CreateSigninActionSuccessResult(ActionSuccessResult):
 
 
 @dataclass
-class CompleteSigninActionSuccessResult(ActionSuccessResult):
+class CompleteSigninActionSuccessResult:
     action_invocation_id: str
     session: Session
     session_token: str
