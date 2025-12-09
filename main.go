@@ -25,6 +25,7 @@ func main() {
 	noKeepAlive := flag.Bool("no-keep-alive", false, "Do not run keep-alive routine")
 	enableReset := flag.Bool("enable-reset", false, "Enable request to /reset to clear storage")
 	emailTemplatesPath := flag.String("email-templates", "", "Path to email templates directory")
+	tokenSocketPath := flag.String("token-socket", "", "Path to Unix domain socket for token broadcasting (for testing)")
 	flag.Parse()
 
 	// Load environment variables from specified env file
@@ -44,6 +45,12 @@ func main() {
 	smtpServerPort := getEnvWithMap(envMap, "FAROE_SMTP_SERVER_PORT")
 	smtpDomain := getEnvWithMap(envMap, "FAROE_SMTP_DOMAIN")
 	sessionExpirationStr := getEnvWithMapOptional(envMap, "FAROE_SESSION_EXPIRATION", "2160h") // Default: 90 days = 2160 hours
+
+	// Token socket path: command line flag takes precedence over env var
+	tokenSocket := *tokenSocketPath
+	if tokenSocket == "" {
+		tokenSocket = getEnvWithMapOptional(envMap, "FAROE_TOKEN_SOCKET_PATH", "")
+	}
 
 	storage := newStorage(dbPath)
 	defer storage.Close()
@@ -81,9 +88,17 @@ func main() {
 		log.Printf("Loaded email templates from %s", *emailTemplatesPath)
 	}
 
+	// Initialize token broadcaster for testing/automation
+	tokenBroadcaster := NewTokenBroadcaster(tokenSocket)
+	if err := tokenBroadcaster.Start(); err != nil {
+		log.Fatalf("failed to start token broadcaster: %v", err)
+	}
+	defer tokenBroadcaster.Close()
+
 	emailSender = &smtpActionsEmailSender{
-		config:    emailConfig,
-		templates: templates,
+		config:           emailConfig,
+		templates:        templates,
+		tokenBroadcaster: tokenBroadcaster,
 	}
 	if *noSmtpInit {
 		// Don't initialize
