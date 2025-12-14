@@ -367,6 +367,11 @@ func (emailSender *smtpActionsEmailSender) SendSignupEmailAddressVerificationCod
 		emailSender.tokenBroadcaster.BroadcastSignupVerification(emailAddress, emailAddressVerificationCode)
 	}
 
+	// Skip sending email if SMTP is disabled
+	if emailSender.config == nil {
+		return nil
+	}
+
 	subject := "Signup verification code"
 
 	data := map[string]any{
@@ -396,6 +401,11 @@ func (emailSender *smtpActionsEmailSender) SendUserEmailAddressUpdateEmailVerifi
 	// Broadcast token for testing/automation
 	if emailSender.tokenBroadcaster != nil {
 		emailSender.tokenBroadcaster.BroadcastEmailUpdateVerification(emailAddress, emailAddressVerificationCode)
+	}
+
+	// Skip sending email if SMTP is disabled
+	if emailSender.config == nil {
+		return nil
 	}
 
 	subject := "Email update verification code"
@@ -433,6 +443,11 @@ func (emailSender *smtpActionsEmailSender) SendUserPasswordResetTemporaryPasswor
 		emailSender.tokenBroadcaster.BroadcastPasswordReset(emailAddress, temporaryPassword)
 	}
 
+	// Skip sending email if SMTP is disabled
+	if emailSender.config == nil {
+		return nil
+	}
+
 	subject := "Password reset temporary password"
 
 	data := map[string]any{
@@ -463,6 +478,11 @@ func (emailSender *smtpActionsEmailSender) SendUserPasswordResetTemporaryPasswor
 }
 
 func (emailSender *smtpActionsEmailSender) SendUserSignedInNotification(emailAddress string, displayName string, time time.Time) error {
+	// Skip sending email if SMTP is disabled
+	if emailSender.config == nil {
+		return nil
+	}
+
 	subject := "Sign-in detected"
 
 	data := map[string]any{
@@ -493,6 +513,11 @@ func (emailSender *smtpActionsEmailSender) SendUserSignedInNotification(emailAdd
 }
 
 func (emailSender *smtpActionsEmailSender) SendUserPasswordUpdatedNotification(emailAddress string, displayName string, time time.Time) error {
+	// Skip sending email if SMTP is disabled
+	if emailSender.config == nil {
+		return nil
+	}
+
 	subject := "Password updated"
 
 	data := map[string]any{
@@ -523,6 +548,11 @@ func (emailSender *smtpActionsEmailSender) SendUserPasswordUpdatedNotification(e
 }
 
 func (emailSender *smtpActionsEmailSender) SendUserEmailAddressUpdatedNotification(emailAddress string, displayName string, newEmailAddress string, time time.Time) error {
+	// Skip sending email if SMTP is disabled
+	if emailSender.config == nil {
+		return nil
+	}
+
 	subject := "Email updated"
 
 	data := map[string]any{

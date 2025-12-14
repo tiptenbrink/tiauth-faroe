@@ -37,8 +37,8 @@ type Config struct {
 	CORSAllowOrigin string
 
 	// Security and behavior flags
+	DisableSMTP       bool // Disable SMTP entirely (only broadcast tokens, don't send emails)
 	InsecureSMTP      bool // Disable TLS for SMTP (dangerous, for testing only)
-	NoSMTPInit        bool // Don't initialize SMTP connection on startup
 	NoKeepAlive       bool // Disable SMTP keep-alive routine
 	EnableReset       bool // Enable /reset endpoint to clear storage
 	EnableInteractive bool // Enable interactive shell mode
@@ -151,9 +151,9 @@ func ConfigFromEnv(envFile string) (Config, error) {
 // Flags holds the parsed command line flags
 type Flags struct {
 	EnvFile            string
+	DisableSMTP        bool
 	Insecure           bool
 	Interactive        bool
-	NoSMTPInit         bool
 	NoKeepAlive        bool
 	EnableReset        bool
 	EmailTemplatesPath string
@@ -169,13 +169,13 @@ func RegisterFlags(fs *flag.FlagSet) *Flags {
 
 	f := &Flags{}
 	fs.StringVar(&f.EnvFile, "env-file", ".env", "Path to environment file")
+	fs.BoolVar(&f.DisableSMTP, "no-smtp", false, "Disable SMTP entirely (only broadcast tokens via socket, don't send emails)")
 	fs.BoolVar(&f.Insecure, "insecure", false, "Disable TLS encryption for SMTP (dangerous)")
 	fs.BoolVar(&f.Interactive, "interactive", false, "Run in interactive mode with stdin commands")
-	fs.BoolVar(&f.NoSMTPInit, "no-smtp-init", false, "Do not initialize SMTP connection on startup")
-	fs.BoolVar(&f.NoKeepAlive, "no-keep-alive", false, "Do not run keep-alive routine")
+	fs.BoolVar(&f.NoKeepAlive, "no-keep-alive", false, "Do not run SMTP keep-alive routine")
 	fs.BoolVar(&f.EnableReset, "enable-reset", false, "Enable request to /reset to clear storage")
 	fs.StringVar(&f.EmailTemplatesPath, "email-templates", "", "Path to email templates directory")
-	fs.StringVar(&f.TokenSocketPath, "token-socket", "", "Path to Unix domain socket for token broadcasting (for testing)")
+	fs.StringVar(&f.TokenSocketPath, "token-socket", "", "Path to Unix domain socket for token broadcasting")
 
 	return f
 }
@@ -189,9 +189,9 @@ func ConfigFromFlags(f *Flags) (Config, error) {
 	}
 
 	// Apply flag overrides
+	cfg.DisableSMTP = f.DisableSMTP
 	cfg.InsecureSMTP = f.Insecure
 	cfg.EnableInteractive = f.Interactive
-	cfg.NoSMTPInit = f.NoSMTPInit
 	cfg.NoKeepAlive = f.NoKeepAlive
 	cfg.EnableReset = f.EnableReset
 
