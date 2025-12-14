@@ -1,4 +1,4 @@
-module github.com/tiptenbrink/tiauth-faroe
+module github.com/tiptenbrink/tiauth-faroe/tiauth
 
 go 1.25.1
 

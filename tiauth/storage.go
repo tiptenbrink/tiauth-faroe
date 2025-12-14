@@ -1,4 +1,4 @@
-package main
+package tiauth
 
 import (
 	"database/sql"

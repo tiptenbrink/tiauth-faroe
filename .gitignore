@@ -10,3 +10,4 @@ tiauth-faroe
 .env
 *.local
 notes.md
+**/tokens.sock

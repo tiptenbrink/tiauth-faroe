@@ -1,4 +1,4 @@
-package main
+package tiauth
 
 import (
 	"bufio"
@@ -7,20 +7,20 @@ import (
 	"strings"
 )
 
-type InteractiveShell struct {
+type interactiveShell struct {
 	reader  *bufio.Reader
 	storage *storageStruct
 	errChan chan error
 }
 
-func NewInteractiveShell(storage *storageStruct) *InteractiveShell {
-	return &InteractiveShell{
+func newInteractiveShell(storage *storageStruct) *interactiveShell {
+	return &interactiveShell{
 		storage: storage,
 		reader:  bufio.NewReader(os.Stdin),
 	}
 }
 
-func (shell *InteractiveShell) listen() {
+func (shell *interactiveShell) listen() {
 	fmt.Println("Interactive mode started.")
 	fmt.Println("Type 'help' for available commands.")
 	fmt.Print("> ")
@@ -42,14 +42,14 @@ func (shell *InteractiveShell) listen() {
 	shell.errChan = errChan
 }
 
-func (shell *InteractiveShell) showHelp() {
+func (shell *interactiveShell) showHelp() {
 	fmt.Println("Available commands:")
 	fmt.Println("  reset - Clear all data from storage")
 	fmt.Println("  help  - Show this help message")
 	fmt.Println("  exit  - Exit program")
 }
 
-func (shell *InteractiveShell) handleCommand(command string) {
+func (shell *interactiveShell) handleCommand(command string) {
 	switch command {
 	case "reset":
 		err := shell.storage.Clear()

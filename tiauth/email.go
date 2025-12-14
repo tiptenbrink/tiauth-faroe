@@ -1,4 +1,4 @@
-package main
+package tiauth
 
 import (
 	"bytes"
@@ -20,39 +20,39 @@ import (
 	"time"
 )
 
-type IPVersion int
+type ipVersion int
 
 const (
-	IPv4 IPVersion = iota
-	IPv6
-	IPAny
+	ipv4 ipVersion = iota
+	ipv6
+	ipAny
 )
 
-func (v IPVersion) Network() string {
+func (v ipVersion) Network() string {
 	switch v {
-	case IPAny:
+	case ipAny:
 		return "tcp"
-	case IPv4:
+	case ipv4:
 		return "tcp4"
-	case IPv6:
+	case ipv6:
 		return "tcp6"
 	default:
 		panic("invalid option!")
 	}
 }
 
-type SMTPSecurity int
+type smtpSecurity int
 
 const (
-	SMTPSecure SMTPSecurity = iota
-	SMTPInsecureDangerous
+	smtpSecure smtpSecurity = iota
+	smtpInsecureDangerous
 )
 
-func (v SMTPSecurity) EnableSecurity() bool {
+func (v smtpSecurity) EnableSecurity() bool {
 	switch v {
-	case SMTPSecure:
+	case smtpSecure:
 		return true
-	case SMTPInsecureDangerous:
+	case smtpInsecureDangerous:
 		return false
 	default:
 		return true
@@ -67,10 +67,10 @@ type smtpConfig struct {
 	domain     string
 	serverHost string
 	serverPort string
-	ipVersion  IPVersion
+	ipVersion  ipVersion
 	// Can be nil, in which case no authentication is performed
 	auth     smtp.Auth
-	security SMTPSecurity
+	security smtpSecurity
 	// Disable keepAlive, if unset defaults to false (keepAlive enabled)
 	disableKeepAlive bool
 	// Path to email templates directory (optional)
