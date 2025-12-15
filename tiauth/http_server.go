@@ -34,13 +34,11 @@ func (server *httpServer) listen(port string) {
 }
 
 func (server *httpServer) handle(w http.ResponseWriter, r *http.Request) {
-	// Set CORS headers
-	origin := server.corsAllowOrigin
-	if origin == "" {
-		origin = "*"
+	// Set CORS headers only if origin is configured
+	if server.corsAllowOrigin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", server.corsAllowOrigin)
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	}
-	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 	// Handle OPTIONS preflight
 	if r.Method == "OPTIONS" {

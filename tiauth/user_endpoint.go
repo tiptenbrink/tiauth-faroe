@@ -8,13 +8,14 @@ import (
 )
 
 type userActionInvocationClientStruct struct {
-	endpoint string
+	endpoint              string
+	privateRouteAccessKey string
 }
 
-func newUserActionInvocationClient(endpoint string) *userActionInvocationClientStruct {
-
+func newUserActionInvocationClient(endpoint string, privateRouteAccessKey string) *userActionInvocationClientStruct {
 	return &userActionInvocationClientStruct{
-		endpoint: endpoint,
+		endpoint:              endpoint,
+		privateRouteAccessKey: privateRouteAccessKey,
 	}
 }
 
@@ -22,6 +23,9 @@ func (userActionInvocationClient *userActionInvocationClientStruct) SendActionIn
 	request, _ := http.NewRequest("POST", userActionInvocationClient.endpoint, strings.NewReader(body))
 
 	request.Header.Set("Content-Type", "application/json")
+	if userActionInvocationClient.privateRouteAccessKey != "" {
+		request.Header.Set("x-private-route-access-key", userActionInvocationClient.privateRouteAccessKey)
+	}
 
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {

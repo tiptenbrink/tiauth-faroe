@@ -33,8 +33,11 @@ type Config struct {
 	// Path to email templates directory (empty for defaults)
 	EmailTemplatesPath string
 
-	// CORS allowed origin (empty or "*" for all origins, or specific origin like "https://example.com")
+	// CORS allowed origin (specific origin like "https://example.com", empty to not set header)
 	CORSAllowOrigin string
+
+	// Path to file containing the private route access key (for authenticating to user action endpoint)
+	PrivateRouteKeyFile string
 
 	// Security and behavior flags
 	DisableSMTP       bool // Disable SMTP entirely (only broadcast tokens, don't send emails)
@@ -50,7 +53,6 @@ func DefaultConfig() Config {
 		DBPath:            "./db.sqlite",
 		Port:              "3777",
 		SessionExpiration: 90 * 24 * time.Hour, // 90 days
-		CORSAllowOrigin:   "*",
 	}
 }
 
@@ -135,9 +137,8 @@ func ConfigFromEnv(envFile string) (Config, error) {
 	cfg.SMTPServerPort = GetEnv(envMap, "FAROE_SMTP_SERVER_PORT")
 	cfg.SMTPDomain = GetEnv(envMap, "FAROE_SMTP_DOMAIN")
 	cfg.TokenSocketPath = GetEnv(envMap, "FAROE_TOKEN_SOCKET_PATH")
-	if v := GetEnv(envMap, "FAROE_CORS_ALLOW_ORIGIN"); v != "" {
-		cfg.CORSAllowOrigin = v
-	}
+	cfg.CORSAllowOrigin = GetEnv(envMap, "FAROE_CORS_ALLOW_ORIGIN")
+	cfg.PrivateRouteKeyFile = GetEnv(envMap, "FAROE_PRIVATE_ROUTE_KEY_FILE")
 
 	if v := GetEnv(envMap, "FAROE_SESSION_EXPIRATION"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {

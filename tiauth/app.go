@@ -3,6 +3,8 @@ package tiauth
 import (
 	"fmt"
 	"log"
+	"os"
+	"strings"
 	"text/template"
 	"time"
 
@@ -60,8 +62,19 @@ func Run(cfg Config) error {
 	app.storage = newStorage(cfg.DBPath)
 	defer app.storage.Close()
 
+	// Load private route access key if configured
+	var privateRouteAccessKey string
+	if cfg.PrivateRouteKeyFile != "" {
+		keyBytes, err := os.ReadFile(cfg.PrivateRouteKeyFile)
+		if err != nil {
+			return fmt.Errorf("failed to read private route key file: %v", err)
+		}
+		privateRouteAccessKey = strings.TrimSpace(string(keyBytes))
+		log.Printf("Loaded private route access key from %s", cfg.PrivateRouteKeyFile)
+	}
+
 	// Initialize user action client
-	userActionInvocationClient := newUserActionInvocationClient(cfg.UserActionInvocationURL)
+	userActionInvocationClient := newUserActionInvocationClient(cfg.UserActionInvocationURL, privateRouteAccessKey)
 	userServerClient := faroe.NewUserServerClient(userActionInvocationClient)
 
 	// Initialize password hash algorithms
