@@ -78,13 +78,13 @@ type smtpConfig struct {
 }
 
 type smtpActionsEmailSender struct {
-	client           *smtp.Client
-	config           *smtpConfig
-	templates        *template.Template
-	tokenBroadcaster *TokenBroadcaster
-	m                sync.Mutex
-	stopChan         chan bool
-	errChan          chan error
+	client    *smtp.Client
+	config    *smtpConfig
+	templates *template.Template
+	udsClient *UDSClient
+	m         sync.Mutex
+	stopChan  chan bool
+	errChan   chan error
 }
 
 func loadEmailTemplates(templatesPath string) (*template.Template, error) {
@@ -362,9 +362,9 @@ func (emailSender *smtpActionsEmailSender) renderTemplate(templateName string, d
 }
 
 func (emailSender *smtpActionsEmailSender) SendSignupEmailAddressVerificationCode(emailAddress string, emailAddressVerificationCode string) error {
-	// Broadcast token for testing/automation
-	if emailSender.tokenBroadcaster != nil {
-		emailSender.tokenBroadcaster.BroadcastSignupVerification(emailAddress, emailAddressVerificationCode)
+	// Send test notification via UDS (only when running with --no-smtp)
+	if emailSender.udsClient != nil {
+		emailSender.udsClient.SendTestNotification("signup_verification", emailAddress, emailAddressVerificationCode)
 	}
 
 	// Skip sending email if SMTP is disabled
@@ -398,9 +398,9 @@ func (emailSender *smtpActionsEmailSender) SendSignupEmailAddressVerificationCod
 }
 
 func (emailSender *smtpActionsEmailSender) SendUserEmailAddressUpdateEmailVerificationCode(emailAddress string, displayName string, emailAddressVerificationCode string) error {
-	// Broadcast token for testing/automation
-	if emailSender.tokenBroadcaster != nil {
-		emailSender.tokenBroadcaster.BroadcastEmailUpdateVerification(emailAddress, emailAddressVerificationCode)
+	// Send test notification via UDS (only when running with --no-smtp)
+	if emailSender.udsClient != nil {
+		emailSender.udsClient.SendTestNotification("email_update_verification", emailAddress, emailAddressVerificationCode)
 	}
 
 	// Skip sending email if SMTP is disabled
@@ -438,9 +438,9 @@ func (emailSender *smtpActionsEmailSender) SendUserEmailAddressUpdateEmailVerifi
 }
 
 func (emailSender *smtpActionsEmailSender) SendUserPasswordResetTemporaryPassword(emailAddress string, displayName string, temporaryPassword string) error {
-	// Broadcast token for testing/automation
-	if emailSender.tokenBroadcaster != nil {
-		emailSender.tokenBroadcaster.BroadcastPasswordReset(emailAddress, temporaryPassword)
+	// Send test notification via UDS (only when running with --no-smtp)
+	if emailSender.udsClient != nil {
+		emailSender.udsClient.SendTestNotification("password_reset", emailAddress, temporaryPassword)
 	}
 
 	// Skip sending email if SMTP is disabled

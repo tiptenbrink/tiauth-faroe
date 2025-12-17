@@ -3,8 +3,6 @@ package tiauth
 import (
 	"fmt"
 	"log"
-	"os"
-	"strings"
 	"text/template"
 	"time"
 
@@ -20,23 +18,25 @@ func (*ActionLogger) LogActionError(timestamp time.Time, message string, actionI
 
 // App represents the running tiauth-faroe application
 type App struct {
-	config           Config
-	storage          *storageStruct
-	emailSender      *smtpActionsEmailSender
-	tokenBroadcaster *TokenBroadcaster
-	httpServer       *httpServer
-	shell            *interactiveShell
+	config      Config
+	storage     *storageStruct
+	emailSender *smtpActionsEmailSender
+	udsClient   *UDSClient
+	httpServer  *httpServer
+	shell       *interactiveShell
 }
 
 // Run starts the tiauth-faroe server with the given configuration.
 // This is a blocking call that runs until an error occurs.
+//
+// Startup sequence:
+//  1. Initialize storage
+//  2. Create UDS HTTP client (connects lazily when needed)
+//  3. Initialize faroe server components
+//  4. Start HTTP server
+//  5. Start SMTP (if enabled)
 func Run(cfg Config) error {
 	app := &App{config: cfg}
-
-	// Validate required config
-	if cfg.UserActionInvocationURL == "" {
-		return fmt.Errorf("config error: UserActionInvocationURL is required (set FAROE_USER_ACTION_INVOCATION_URL in env file or environment)")
-	}
 
 	// Determine if SMTP should be used
 	smtpEnabled := !cfg.DisableSMTP
@@ -62,33 +62,17 @@ func Run(cfg Config) error {
 	app.storage = newStorage(cfg.DBPath)
 	defer app.storage.Close()
 
-	// Load private route access key if configured
-	var privateRouteAccessKey string
-	if cfg.PrivateRouteKeyFile != "" {
-		keyBytes, err := os.ReadFile(cfg.PrivateRouteKeyFile)
-		if err != nil {
-			return fmt.Errorf("failed to read private route key file: %v", err)
-		}
-		privateRouteAccessKey = strings.TrimSpace(string(keyBytes))
-		log.Printf("Loaded private route access key from %s", cfg.PrivateRouteKeyFile)
-	}
+	// Create UDS HTTP client (connects lazily when needed)
+	app.udsClient = NewUDSClient(cfg.SocketPath)
 
-	// Initialize user action client
-	userActionInvocationClient := newUserActionInvocationClient(cfg.UserActionInvocationURL, privateRouteAccessKey)
-	userServerClient := faroe.NewUserServerClient(userActionInvocationClient)
+	// Initialize user action client using UDS HTTP
+	userServerClient := faroe.NewUserServerClient(app.udsClient)
 
 	// Initialize password hash algorithms
 	userPasswordHashAlgorithm := newArgon2id(3, 1024*64, 1)
 	temporaryPasswordHashAlgorithm := newArgon2id(3, 1024*16, 1)
 
-	// Initialize token broadcaster
-	app.tokenBroadcaster = NewTokenBroadcaster(cfg.TokenSocketPath)
-	if err := app.tokenBroadcaster.Start(); err != nil {
-		return fmt.Errorf("failed to start token broadcaster: %v", err)
-	}
-	defer app.tokenBroadcaster.Close()
-
-	// Initialize email sender
+	// Create email sender (doesn't connect to SMTP yet)
 	if smtpEnabled {
 		// Determine SMTP security
 		var security smtpSecurity
@@ -123,23 +107,15 @@ func Run(cfg Config) error {
 		}
 
 		app.emailSender = &smtpActionsEmailSender{
-			config:           emailConfig,
-			templates:        templates,
-			tokenBroadcaster: app.tokenBroadcaster,
+			config:    emailConfig,
+			templates: templates,
+			udsClient: app.udsClient,
 		}
-
-		app.emailSender.m.Lock()
-		err := app.emailSender.Start(time.Minute * 5)
-		if err != nil {
-			app.emailSender.m.Unlock()
-			return fmt.Errorf("failed to start email sender: %v", err)
-		}
-		app.emailSender.m.Unlock()
 		defer app.emailSender.Close()
 	} else {
 		// Create email sender that only broadcasts tokens (no SMTP)
 		app.emailSender = &smtpActionsEmailSender{
-			tokenBroadcaster: app.tokenBroadcaster,
+			udsClient: app.udsClient,
 		}
 	}
 
@@ -175,6 +151,17 @@ func Run(cfg Config) error {
 		corsAllowOrigin: cfg.CORSAllowOrigin,
 	}
 	app.httpServer.listen(cfg.Port)
+
+	// Start SMTP connection (may block)
+	if smtpEnabled {
+		app.emailSender.m.Lock()
+		err := app.emailSender.Start(time.Minute * 5)
+		if err != nil {
+			app.emailSender.m.Unlock()
+			return fmt.Errorf("failed to start email sender: %v", err)
+		}
+		app.emailSender.m.Unlock()
+	}
 
 	// Start interactive shell if enabled
 	app.shell = newInteractiveShell(app.storage)

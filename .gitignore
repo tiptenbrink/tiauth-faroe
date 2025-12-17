@@ -11,3 +11,4 @@ tiauth-faroe
 *.local
 notes.md
 **/tokens.sock
+faroe-docs

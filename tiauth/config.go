@@ -4,9 +4,15 @@ import (
 	"bufio"
 	"flag"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
+
+// DefaultSocketPath returns the default socket path in the system temp directory
+func DefaultSocketPath() string {
+	return filepath.Join(os.TempDir(), "tiauth_faroe.sock")
+}
 
 // Config holds all configuration for the tiauth-faroe server
 type Config struct {
@@ -14,8 +20,8 @@ type Config struct {
 	DBPath string
 	// Port to listen on
 	Port string
-	// URL for user action invocation endpoint
-	UserActionInvocationURL string
+	// Path to Unix socket for Python backend communication (user actions + notifications)
+	SocketPath string
 
 	// SMTP configuration
 	SMTPSenderName  string
@@ -27,17 +33,11 @@ type Config struct {
 	// Session expiration duration (default: 90 days)
 	SessionExpiration time.Duration
 
-	// Path to Unix domain socket for token broadcasting (empty to disable)
-	TokenSocketPath string
-
 	// Path to email templates directory (empty for defaults)
 	EmailTemplatesPath string
 
 	// CORS allowed origin (specific origin like "https://example.com", empty to not set header)
 	CORSAllowOrigin string
-
-	// Path to file containing the private route access key (for authenticating to user action endpoint)
-	PrivateRouteKeyFile string
 
 	// Security and behavior flags
 	DisableSMTP       bool // Disable SMTP entirely (only broadcast tokens, don't send emails)
@@ -52,6 +52,7 @@ func DefaultConfig() Config {
 	return Config{
 		DBPath:            "./db.sqlite",
 		Port:              "3777",
+		SocketPath:        DefaultSocketPath(),
 		SessionExpiration: 90 * 24 * time.Hour, // 90 days
 	}
 }
@@ -130,15 +131,15 @@ func ConfigFromEnv(envFile string) (Config, error) {
 	if v := GetEnv(envMap, "FAROE_PORT"); v != "" {
 		cfg.Port = v
 	}
-	cfg.UserActionInvocationURL = GetEnv(envMap, "FAROE_USER_ACTION_INVOCATION_URL")
+	if v := GetEnv(envMap, "FAROE_SOCKET_PATH"); v != "" {
+		cfg.SocketPath = v
+	}
 	cfg.SMTPSenderName = GetEnv(envMap, "FAROE_SMTP_SENDER_NAME")
 	cfg.SMTPSenderEmail = GetEnv(envMap, "FAROE_SMTP_SENDER_EMAIL")
 	cfg.SMTPServerHost = GetEnv(envMap, "FAROE_SMTP_SERVER_HOST")
 	cfg.SMTPServerPort = GetEnv(envMap, "FAROE_SMTP_SERVER_PORT")
 	cfg.SMTPDomain = GetEnv(envMap, "FAROE_SMTP_DOMAIN")
-	cfg.TokenSocketPath = GetEnv(envMap, "FAROE_TOKEN_SOCKET_PATH")
 	cfg.CORSAllowOrigin = GetEnv(envMap, "FAROE_CORS_ALLOW_ORIGIN")
-	cfg.PrivateRouteKeyFile = GetEnv(envMap, "FAROE_PRIVATE_ROUTE_KEY_FILE")
 
 	if v := GetEnv(envMap, "FAROE_SESSION_EXPIRATION"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
@@ -158,7 +159,7 @@ type Flags struct {
 	NoKeepAlive        bool
 	EnableReset        bool
 	EmailTemplatesPath string
-	TokenSocketPath    string
+	SocketPath         string
 }
 
 // RegisterFlags registers all tiauth-faroe flags on the given FlagSet.
@@ -176,7 +177,7 @@ func RegisterFlags(fs *flag.FlagSet) *Flags {
 	fs.BoolVar(&f.NoKeepAlive, "no-keep-alive", false, "Do not run SMTP keep-alive routine")
 	fs.BoolVar(&f.EnableReset, "enable-reset", false, "Enable request to /reset to clear storage")
 	fs.StringVar(&f.EmailTemplatesPath, "email-templates", "", "Path to email templates directory")
-	fs.StringVar(&f.TokenSocketPath, "token-socket", "", "Path to Unix domain socket for token broadcasting")
+	fs.StringVar(&f.SocketPath, "socket", "", "Path to Unix socket for Python backend communication")
 
 	return f
 }
@@ -199,8 +200,8 @@ func ConfigFromFlags(f *Flags) (Config, error) {
 	if f.EmailTemplatesPath != "" {
 		cfg.EmailTemplatesPath = f.EmailTemplatesPath
 	}
-	if f.TokenSocketPath != "" {
-		cfg.TokenSocketPath = f.TokenSocketPath
+	if f.SocketPath != "" {
+		cfg.SocketPath = f.SocketPath
 	}
 
 	return cfg, nil
