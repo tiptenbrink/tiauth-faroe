@@ -38,6 +38,7 @@ func (server *httpServer) handle(w http.ResponseWriter, r *http.Request) {
 	if server.corsAllowOrigin != "" {
 		w.Header().Set("Access-Control-Allow-Origin", server.corsAllowOrigin)
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	}
 
 	// Handle OPTIONS preflight

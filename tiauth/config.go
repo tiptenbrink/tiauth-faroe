@@ -4,15 +4,10 @@ import (
 	"bufio"
 	"flag"
 	"os"
-	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
-
-// DefaultSocketPath returns the default socket path in the system temp directory
-func DefaultSocketPath() string {
-	return filepath.Join(os.TempDir(), "tiauth_faroe.sock")
-}
 
 // Config holds all configuration for the tiauth-faroe server
 type Config struct {
@@ -20,8 +15,8 @@ type Config struct {
 	DBPath string
 	// Port to listen on
 	Port string
-	// Path to Unix socket for Python backend communication (user actions + notifications)
-	SocketPath string
+	// Port for Python backend communication (binds to 127.0.0.2)
+	PrivatePort int
 
 	// SMTP configuration
 	SMTPSenderName  string
@@ -52,7 +47,7 @@ func DefaultConfig() Config {
 	return Config{
 		DBPath:            "./db.sqlite",
 		Port:              "3777",
-		SocketPath:        DefaultSocketPath(),
+		PrivatePort:       8079,
 		SessionExpiration: 90 * 24 * time.Hour, // 90 days
 	}
 }
@@ -131,8 +126,10 @@ func ConfigFromEnv(envFile string) (Config, error) {
 	if v := GetEnv(envMap, "FAROE_PORT"); v != "" {
 		cfg.Port = v
 	}
-	if v := GetEnv(envMap, "FAROE_SOCKET_PATH"); v != "" {
-		cfg.SocketPath = v
+	if v := GetEnv(envMap, "FAROE_PRIVATE_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.PrivatePort = port
+		}
 	}
 	cfg.SMTPSenderName = GetEnv(envMap, "FAROE_SMTP_SENDER_NAME")
 	cfg.SMTPSenderEmail = GetEnv(envMap, "FAROE_SMTP_SENDER_EMAIL")
@@ -159,7 +156,7 @@ type Flags struct {
 	NoKeepAlive        bool
 	EnableReset        bool
 	EmailTemplatesPath string
-	SocketPath         string
+	PrivatePort        int
 }
 
 // RegisterFlags registers all tiauth-faroe flags on the given FlagSet.
@@ -177,7 +174,7 @@ func RegisterFlags(fs *flag.FlagSet) *Flags {
 	fs.BoolVar(&f.NoKeepAlive, "no-keep-alive", false, "Do not run SMTP keep-alive routine")
 	fs.BoolVar(&f.EnableReset, "enable-reset", false, "Enable request to /reset to clear storage")
 	fs.StringVar(&f.EmailTemplatesPath, "email-templates", "", "Path to email templates directory")
-	fs.StringVar(&f.SocketPath, "socket", "", "Path to Unix socket for Python backend communication")
+	fs.IntVar(&f.PrivatePort, "private-port", 0, "Port for Python backend communication (binds to 127.0.0.2)")
 
 	return f
 }
@@ -200,8 +197,8 @@ func ConfigFromFlags(f *Flags) (Config, error) {
 	if f.EmailTemplatesPath != "" {
 		cfg.EmailTemplatesPath = f.EmailTemplatesPath
 	}
-	if f.SocketPath != "" {
-		cfg.SocketPath = f.SocketPath
+	if f.PrivatePort != 0 {
+		cfg.PrivatePort = f.PrivatePort
 	}
 
 	return cfg, nil

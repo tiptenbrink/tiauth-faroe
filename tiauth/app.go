@@ -18,12 +18,12 @@ func (*ActionLogger) LogActionError(timestamp time.Time, message string, actionI
 
 // App represents the running tiauth-faroe application
 type App struct {
-	config      Config
-	storage     *storageStruct
-	emailSender *smtpActionsEmailSender
-	udsClient   *UDSClient
-	httpServer  *httpServer
-	shell       *interactiveShell
+	config        Config
+	storage       *storageStruct
+	emailSender   *smtpActionsEmailSender
+	backendClient *BackendClient
+	httpServer    *httpServer
+	shell         *interactiveShell
 }
 
 // Run starts the tiauth-faroe server with the given configuration.
@@ -31,7 +31,7 @@ type App struct {
 //
 // Startup sequence:
 //  1. Initialize storage
-//  2. Create UDS HTTP client (connects lazily when needed)
+//  2. Create backend HTTP client for Python communication
 //  3. Initialize faroe server components
 //  4. Start HTTP server
 //  5. Start SMTP (if enabled)
@@ -62,11 +62,11 @@ func Run(cfg Config) error {
 	app.storage = newStorage(cfg.DBPath)
 	defer app.storage.Close()
 
-	// Create UDS HTTP client (connects lazily when needed)
-	app.udsClient = NewUDSClient(cfg.SocketPath)
+	// Create backend HTTP client for Python communication
+	app.backendClient = NewBackendClient(cfg.PrivatePort)
 
-	// Initialize user action client using UDS HTTP
-	userServerClient := faroe.NewUserServerClient(app.udsClient)
+	// Initialize user action client using backend HTTP
+	userServerClient := faroe.NewUserServerClient(app.backendClient)
 
 	// Initialize password hash algorithms
 	userPasswordHashAlgorithm := newArgon2id(3, 1024*64, 1)
@@ -107,15 +107,15 @@ func Run(cfg Config) error {
 		}
 
 		app.emailSender = &smtpActionsEmailSender{
-			config:    emailConfig,
-			templates: templates,
-			udsClient: app.udsClient,
+			config:        emailConfig,
+			templates:     templates,
+			backendClient: app.backendClient,
 		}
 		defer app.emailSender.Close()
 	} else {
 		// Create email sender that only broadcasts tokens (no SMTP)
 		app.emailSender = &smtpActionsEmailSender{
-			udsClient: app.udsClient,
+			backendClient: app.backendClient,
 		}
 	}
 
