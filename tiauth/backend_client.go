@@ -53,36 +53,40 @@ func (c *BackendClient) SendActionInvocationEndpointRequest(requestJSON string) 
 	return string(body), nil
 }
 
-// SendTestNotification sends a token notification to Python's /token endpoint.
-// This is used for testing when SMTP is disabled.
-func (c *BackendClient) SendTestNotification(action, email, code string) error {
-	payload := map[string]string{
-		"action": action,
-		"email":  email,
-		"code":   code,
-	}
-	jsonData, err := json.Marshal(payload)
+// EmailRequest represents an email request to the Python backend.
+type EmailRequest struct {
+	Type        string `json:"type"`
+	Email       string `json:"email"`
+	DisplayName string `json:"displayName,omitempty"`
+	Code        string `json:"code,omitempty"`
+	Timestamp   string `json:"timestamp,omitempty"`
+	NewEmail    string `json:"newEmail,omitempty"`
+}
+
+// SendEmail sends an email request to Python's /email endpoint.
+// The Python backend handles token storage and SMTP delivery.
+func (c *BackendClient) SendEmail(req EmailRequest) error {
+	jsonData, err := json.Marshal(req)
 	if err != nil {
-		return fmt.Errorf("failed to marshal token data: %w", err)
+		return fmt.Errorf("failed to marshal email request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", c.baseURL+"/token", bytes.NewReader(jsonData))
+	httpReq, err := http.NewRequest("POST", c.baseURL+"/email", bytes.NewReader(jsonData))
 	if err != nil {
-		return fmt.Errorf("failed to create token request: %w", err)
+		return fmt.Errorf("failed to create email request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.client.Do(req)
+	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return fmt.Errorf("failed to send token notification: %w", err)
+		return fmt.Errorf("failed to send email request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Always read the response body to ensure the HTTP transaction completes
 	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("token notification failed with status %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("email request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	return nil

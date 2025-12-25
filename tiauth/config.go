@@ -18,26 +18,13 @@ type Config struct {
 	// Port for Python backend communication (binds to 127.0.0.2)
 	PrivatePort int
 
-	// SMTP configuration
-	SMTPSenderName  string
-	SMTPSenderEmail string
-	SMTPServerHost  string
-	SMTPServerPort  string
-	SMTPDomain      string
-
 	// Session expiration duration (default: 90 days)
 	SessionExpiration time.Duration
-
-	// Path to email templates directory (empty for defaults)
-	EmailTemplatesPath string
 
 	// CORS allowed origin (specific origin like "https://example.com", empty to not set header)
 	CORSAllowOrigin string
 
-	// Security and behavior flags
-	DisableSMTP       bool // Disable SMTP entirely (only broadcast tokens, don't send emails)
-	InsecureSMTP      bool // Disable TLS for SMTP (dangerous, for testing only)
-	NoKeepAlive       bool // Disable SMTP keep-alive routine
+	// Behavior flags
 	EnableReset       bool // Enable /reset endpoint to clear storage
 	EnableInteractive bool // Enable interactive shell mode
 }
@@ -131,11 +118,6 @@ func ConfigFromEnv(envFile string) (Config, error) {
 			cfg.PrivatePort = port
 		}
 	}
-	cfg.SMTPSenderName = GetEnv(envMap, "FAROE_SMTP_SENDER_NAME")
-	cfg.SMTPSenderEmail = GetEnv(envMap, "FAROE_SMTP_SENDER_EMAIL")
-	cfg.SMTPServerHost = GetEnv(envMap, "FAROE_SMTP_SERVER_HOST")
-	cfg.SMTPServerPort = GetEnv(envMap, "FAROE_SMTP_SERVER_PORT")
-	cfg.SMTPDomain = GetEnv(envMap, "FAROE_SMTP_DOMAIN")
 	cfg.CORSAllowOrigin = GetEnv(envMap, "FAROE_CORS_ALLOW_ORIGIN")
 
 	if v := GetEnv(envMap, "FAROE_SESSION_EXPIRATION"); v != "" {
@@ -149,14 +131,10 @@ func ConfigFromEnv(envFile string) (Config, error) {
 
 // Flags holds the parsed command line flags
 type Flags struct {
-	EnvFile            string
-	DisableSMTP        bool
-	Insecure           bool
-	Interactive        bool
-	NoKeepAlive        bool
-	EnableReset        bool
-	EmailTemplatesPath string
-	PrivatePort        int
+	EnvFile     string
+	Interactive bool
+	EnableReset bool
+	PrivatePort int
 }
 
 // RegisterFlags registers all tiauth-faroe flags on the given FlagSet.
@@ -168,12 +146,8 @@ func RegisterFlags(fs *flag.FlagSet) *Flags {
 
 	f := &Flags{}
 	fs.StringVar(&f.EnvFile, "env-file", ".env", "Path to environment file")
-	fs.BoolVar(&f.DisableSMTP, "no-smtp", false, "Disable SMTP entirely (only broadcast tokens via socket, don't send emails)")
-	fs.BoolVar(&f.Insecure, "insecure", false, "Disable TLS encryption for SMTP (dangerous)")
 	fs.BoolVar(&f.Interactive, "interactive", false, "Run in interactive mode with stdin commands")
-	fs.BoolVar(&f.NoKeepAlive, "no-keep-alive", false, "Do not run SMTP keep-alive routine")
 	fs.BoolVar(&f.EnableReset, "enable-reset", false, "Enable request to /reset to clear storage")
-	fs.StringVar(&f.EmailTemplatesPath, "email-templates", "", "Path to email templates directory")
 	fs.IntVar(&f.PrivatePort, "private-port", 0, "Port for Python backend communication (binds to 127.0.0.2)")
 
 	return f
@@ -188,15 +162,9 @@ func ConfigFromFlags(f *Flags) (Config, error) {
 	}
 
 	// Apply flag overrides
-	cfg.DisableSMTP = f.DisableSMTP
-	cfg.InsecureSMTP = f.Insecure
 	cfg.EnableInteractive = f.Interactive
-	cfg.NoKeepAlive = f.NoKeepAlive
 	cfg.EnableReset = f.EnableReset
 
-	if f.EmailTemplatesPath != "" {
-		cfg.EmailTemplatesPath = f.EmailTemplatesPath
-	}
 	if f.PrivatePort != 0 {
 		cfg.PrivatePort = f.PrivatePort
 	}

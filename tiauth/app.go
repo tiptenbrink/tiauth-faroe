@@ -1,9 +1,7 @@
 package tiauth
 
 import (
-	"fmt"
 	"log"
-	"text/template"
 	"time"
 
 	"github.com/faroedev/faroe"
@@ -20,7 +18,7 @@ func (*ActionLogger) LogActionError(timestamp time.Time, message string, actionI
 type App struct {
 	config        Config
 	storage       *storageStruct
-	emailSender   *smtpActionsEmailSender
+	emailSender   *backendEmailSender
 	backendClient *BackendClient
 	httpServer    *httpServer
 	shell         *interactiveShell
@@ -34,29 +32,8 @@ type App struct {
 //  2. Create backend HTTP client for Python communication
 //  3. Initialize faroe server components
 //  4. Start HTTP server
-//  5. Start SMTP (if enabled)
 func Run(cfg Config) error {
 	app := &App{config: cfg}
-
-	// Determine if SMTP should be used
-	smtpEnabled := !cfg.DisableSMTP
-	if smtpEnabled {
-		// Validate SMTP config only if SMTP is enabled
-		if cfg.SMTPSenderEmail == "" {
-			return fmt.Errorf("config error: SMTPSenderEmail is required when SMTP is enabled (set FAROE_SMTP_SENDER_EMAIL or use --no-smtp)")
-		}
-		if cfg.SMTPServerHost == "" {
-			return fmt.Errorf("config error: SMTPServerHost is required when SMTP is enabled (set FAROE_SMTP_SERVER_HOST or use --no-smtp)")
-		}
-		if cfg.SMTPServerPort == "" {
-			return fmt.Errorf("config error: SMTPServerPort is required when SMTP is enabled (set FAROE_SMTP_SERVER_PORT or use --no-smtp)")
-		}
-		if cfg.SMTPDomain == "" {
-			return fmt.Errorf("config error: SMTPDomain is required when SMTP is enabled (set FAROE_SMTP_DOMAIN or use --no-smtp)")
-		}
-	} else {
-		log.Println("SMTP disabled - emails will not be sent, only tokens will be broadcast")
-	}
 
 	// Initialize storage
 	app.storage = newStorage(cfg.DBPath)
@@ -72,51 +49,9 @@ func Run(cfg Config) error {
 	userPasswordHashAlgorithm := newArgon2id(3, 1024*64, 1)
 	temporaryPasswordHashAlgorithm := newArgon2id(3, 1024*16, 1)
 
-	// Create email sender (doesn't connect to SMTP yet)
-	if smtpEnabled {
-		// Determine SMTP security
-		var security smtpSecurity
-		if cfg.InsecureSMTP {
-			security = smtpInsecureDangerous
-		} else {
-			security = smtpSecure
-		}
-
-		// Create email config
-		emailConfig := &smtpConfig{
-			senderName:       cfg.SMTPSenderName,
-			senderEmail:      cfg.SMTPSenderEmail,
-			serverHost:       cfg.SMTPServerHost,
-			serverPort:       cfg.SMTPServerPort,
-			ipVersion:        ipv4,
-			domain:           cfg.SMTPDomain,
-			security:         security,
-			disableKeepAlive: cfg.NoKeepAlive,
-			templatesPath:    cfg.EmailTemplatesPath,
-		}
-
-		// Load email templates if path is provided
-		var templates *template.Template
-		if cfg.EmailTemplatesPath != "" {
-			var err error
-			templates, err = loadEmailTemplates(cfg.EmailTemplatesPath)
-			if err != nil {
-				return fmt.Errorf("failed to load email templates: %v", err)
-			}
-			log.Printf("Loaded email templates from %s", cfg.EmailTemplatesPath)
-		}
-
-		app.emailSender = &smtpActionsEmailSender{
-			config:        emailConfig,
-			templates:     templates,
-			backendClient: app.backendClient,
-		}
-		defer app.emailSender.Close()
-	} else {
-		// Create email sender that only broadcasts tokens (no SMTP)
-		app.emailSender = &smtpActionsEmailSender{
-			backendClient: app.backendClient,
-		}
+	// Create email sender (delegates to Python backend)
+	app.emailSender = &backendEmailSender{
+		backendClient: app.backendClient,
 	}
 
 	// Session expiration
@@ -152,17 +87,6 @@ func Run(cfg Config) error {
 	}
 	app.httpServer.listen(cfg.Port)
 
-	// Start SMTP connection (may block)
-	if smtpEnabled {
-		app.emailSender.m.Lock()
-		err := app.emailSender.Start(time.Minute * 5)
-		if err != nil {
-			app.emailSender.m.Unlock()
-			return fmt.Errorf("failed to start email sender: %v", err)
-		}
-		app.emailSender.m.Unlock()
-	}
-
 	// Start interactive shell if enabled
 	app.shell = newInteractiveShell(app.storage)
 	if cfg.EnableInteractive {
@@ -171,22 +95,11 @@ func Run(cfg Config) error {
 
 	// Wait for errors
 	for {
-		if smtpEnabled {
-			select {
-			case serverErr := <-app.httpServer.errChan:
-				return serverErr
-			case mailErr := <-app.emailSender.errChan:
-				return mailErr
-			case shellErr := <-app.shell.errChan:
-				return shellErr
-			}
-		} else {
-			select {
-			case serverErr := <-app.httpServer.errChan:
-				return serverErr
-			case shellErr := <-app.shell.errChan:
-				return shellErr
-			}
+		select {
+		case serverErr := <-app.httpServer.errChan:
+			return serverErr
+		case shellErr := <-app.shell.errChan:
+			return shellErr
 		}
 	}
 }

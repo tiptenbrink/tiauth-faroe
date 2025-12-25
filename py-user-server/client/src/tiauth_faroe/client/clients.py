@@ -18,6 +18,7 @@ from tiauth_faroe.client.logic import (
     create_signup,
     get_session,
     parse_action_invocation_response,
+    send_signup_email_address_verification_code,
     set_signup_password,
     verify_signin_user_password,
     verify_signup_email_address_verification_code,
@@ -43,6 +44,15 @@ class AsyncClient:
         return await send_gen_async(
             create_signup(email_address),
             "create_signup",
+            self.manage_action_invocation_request,
+        )
+
+    async def send_signup_email_address_verification_code(
+        self, signup_token: str
+    ) -> ActionResult:
+        return await send_gen_async(
+            send_signup_email_address_verification_code(signup_token),
+            "send_signup_email_address_verification_code",
             self.manage_action_invocation_request,
         )
 
@@ -148,6 +158,15 @@ class SyncClient:
         return send_gen_sync(
             create_signup(email_address),
             "create_signup",
+            self.manage_action_invocation_request,
+        )
+
+    def send_signup_email_address_verification_code(
+        self, signup_token: str
+    ) -> ActionResult:
+        return send_gen_sync(
+            send_signup_email_address_verification_code(signup_token),
+            "send_signup_email_address_verification_code",
             self.manage_action_invocation_request,
         )
 

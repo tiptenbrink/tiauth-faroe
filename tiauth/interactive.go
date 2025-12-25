@@ -56,7 +56,7 @@ func (shell *interactiveShell) handleCommand(command string) {
 		if err != nil {
 			fmt.Printf("Error clearing storage: %v\n", err)
 		} else {
-			fmt.Println("Storage cleared successfully")
+			fmt.Println("Storage cleared successfully (Go side only)")
 		}
 	case "help":
 		shell.showHelp()

@@ -325,6 +325,23 @@ def get_session(
     )
 
 
+def send_signup_email_address_verification_code(
+    signup_token: str,
+) -> Generator[
+    dict[str, JSONValue],
+    ActionParseResult,
+    ActionSuccessResult | ActionErrorResult,
+]:
+    """Send the email address verification code for a signup."""
+    arguments_object: JSONDict = {"signup_token": signup_token}
+
+    result = yield arguments_object
+    if isinstance(result, ActionErrorResult):
+        return result
+
+    return result.as_success()
+
+
 def verify_signup_email_address_verification_code(
     signup_token: str, email_address_verification_code: str
 ) -> Generator[
