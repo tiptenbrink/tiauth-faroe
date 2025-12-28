@@ -3,16 +3,16 @@ name = "sync-reference-server"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     "tiauth_faroe.user_server",
-    "tiauth_faroe.client"
+    "tiauth_faroe.client",
+    "sqlalchemy>=2.0.45"
 ]
 
 [tool.uv.sources]
-"tiauth_faroe.user_server" = { workspace = true }
-"tiauth_faroe.client" = { workspace = true }
-
+"tiauth_faroe.user_server" = { path = "../user-server" }
+"tiauth_faroe.client" = { path = "../client" }
 
 [build-system]
 requires = ["uv_build>=0.9,<0.10"]
@@ -21,5 +21,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "basedpyright>=1.31.4",
+    "pytest>=9",
+    "ruff>=0.14.6",
+    "ty>=0.0.7",
 ]

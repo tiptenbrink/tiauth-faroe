@@ -1,10 +1,12 @@
 import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+
 from tiauth_faroe.user_server import handle_request_sync
-from data.db import init_sqlite_engine
-from data.queries import SqliteSyncServer, clear_all_users
-from data.model import metadata
+
+from sync_reference_server.data.db import init_sqlite_engine
+from sync_reference_server.data.model import metadata
+from sync_reference_server.data.queries import SqliteSyncServer, clear_all_users
 
 
 class UserServerHTTPServer(ThreadingHTTPServer):
