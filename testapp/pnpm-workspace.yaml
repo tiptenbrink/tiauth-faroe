@@ -1,4 +1,0 @@
-onlyBuiltDependencies:
-  - esbuild
-# Ensure we don't use versions that are too recent
-minimumReleaseAge: 2880
