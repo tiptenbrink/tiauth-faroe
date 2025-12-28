@@ -19,6 +19,6 @@ build-backend = "uv_build"
 members = [
     "sync-server",
     "data",
-    "lib",
+    "user-server",
     "client"
 ]
