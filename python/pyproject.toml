@@ -17,8 +17,7 @@ build-backend = "uv_build"
 
 [tool.uv.workspace]
 members = [
-    "sync-server",
-    "data",
+    "sync-reference-server",
     "user-server",
     "client"
 ]
