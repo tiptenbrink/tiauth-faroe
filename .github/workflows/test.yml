@@ -17,49 +17,42 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: "./go.mod"
+          go-version-file: "./tiauth/go.mod"
+          cache-dependency-path: "./tiauth/go.sum"
           cache: true
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: "10.24"
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: "testapp/pnpm-lock.yaml"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           version: "0.9.11"
-          working-directory: ./py-user-server
+          working-directory: ./python
           prune-cache: false
 
-      - name: Install testapp dependencies
-        working-directory: ./testapp
-        run: pnpm install --frozen-lockfile
-
-      - name: Sync Python dependencies
-        working-directory: ./py-user-server/sync-server
+      - name: Sync Python client
+        working-directory: ./python/client
+        run: uv sync --frozen
+      - name: Sync Python user-server
+        working-directory: ./python/user-server
+        run: uv sync --frozen
+      - name: Sync Python sync-reference-server
+        working-directory: ./python/sync-reference-server
         run: uv sync --frozen
 
       - name: Build Go dependencies
+        working-directory: ./tiauth
         run: |
           go mod download
 
       - name: Build Go
-        run: CGO_ENABLED=1 go build
+        working-directory: ./tiauth
+        run: CGO_ENABLED=1 go build -o tiauth ./cmd
 
       - name: Start Go auth server
+        working-directory: ./tiauth
         run: |
-          nohup ./tiauth-faroe --insecure --no-smtp-init --no-keep-alive --env-file .env.test > go_server.log 2>&1 &
-          echo $! > go_server.pid
+          nohup ./tiauth --env-file .env.test > ../go_server.log 2>&1 &
+          echo $! > ../go_server.pid
 
           # Wait for Go server to be ready with health check
           echo "Waiting for Go server to start..."
@@ -76,7 +69,7 @@ jobs:
           done
 
       - name: Start Python user server
-        working-directory: ./py-user-server/sync-server
+        working-directory: ./python/sync-reference-server
         run: |
           nohup uv run main.py > ../../python_server.log 2>&1 &
           echo $! > ../../python_server.pid
@@ -95,9 +88,13 @@ jobs:
             sleep 1
           done
 
+      - name: Run Python user server library tests
+        working-directory: ./python/user-server
+        run: uv run pytest
+
       - name: Run test suite
-        working-directory: ./testapp
-        run: pnpm test
+        working-directory: ./python/sync-reference-server
+        run: uv run pytest
 
       - name: Output Go server log
         if: success() || failure()

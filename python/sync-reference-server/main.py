@@ -23,7 +23,7 @@ class UserServerHTTPServer(ThreadingHTTPServer):
 
 
 class JSONRequestHandler(BaseHTTPRequestHandler):
-    server: UserServerHTTPServer  # pyright: ignore[reportIncompatibleVariableOverride]
+    server: UserServerHTTPServer
 
     def do_POST(self):
         try:
