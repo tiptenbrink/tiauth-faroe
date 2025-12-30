@@ -140,7 +140,7 @@ async def send_gen_async(
 
 
 class SyncClient:
-    def send_action_invocation_request(self, _body: JSONValue) -> JSONValue:
+    def send_action_invocation_request(self, body: JSONValue) -> JSONValue:
         raise NotImplementedError("Implement this function!")
 
     def manage_action_invocation_request(
