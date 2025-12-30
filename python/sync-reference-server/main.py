@@ -1,3 +1,4 @@
+import argparse
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -7,6 +8,11 @@ from tiauth_faroe.user_server import handle_request_sync
 from sync_reference_server.data.db import init_sqlite_engine
 from sync_reference_server.data.model import metadata
 from sync_reference_server.data.queries import SqliteSyncServer, clear_all_users
+
+
+# Default host/port matching what the Go tiauth server expects
+DEFAULT_HOST = "127.0.0.2"
+DEFAULT_PORT = 8079
 
 
 class UserServerHTTPServer(ThreadingHTTPServer):
@@ -27,7 +33,8 @@ class JSONRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
-            if self.path == "/auth/invoke_user_action":
+            # /invoke is the endpoint the Go tiauth server calls
+            if self.path == "/invoke" or self.path == "/auth/invoke_user_action":
                 self.handle_invoke_user_action()
             elif self.path == "/auth/clear_tables":
                 self.handle_clear_tables()
@@ -39,6 +46,24 @@ class JSONRequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             print(f"Error: {e}")
             self.send_error_response(500, "Internal Server Error")
+
+    def do_GET(self):
+        try:
+            if self.path == "/health" or self.path == "/":
+                self.handle_health()
+            else:
+                self.send_error_response(404, "Not Found")
+        except Exception as e:
+            print(f"Error: {e}")
+            self.send_error_response(500, "Internal Server Error")
+
+    def handle_health(self):
+        """Health check endpoint."""
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", "15")
+        self.end_headers()
+        _ = self.wfile.write(b'{"status":"ok"}')
 
     def handle_invoke_user_action(self):
         content_length = int(self.headers.get("Content-Length", 0))
@@ -83,7 +108,7 @@ class JSONRequestHandler(BaseHTTPRequestHandler):
         _ = self.wfile.write(json_response)
 
 
-def run_server(host: str = "localhost", port: int = 8000, db_path: Path | None = None):
+def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, db_path: Path | None = None):
     engine = init_sqlite_engine(Path(db_path) if db_path else None)
 
     metadata.create_all(engine)
@@ -101,5 +126,30 @@ def run_server(host: str = "localhost", port: int = 8000, db_path: Path | None =
         server.shutdown()
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="tiauth-faroe user server")
+    parser.add_argument(
+        "--host",
+        type=str,
+        default=DEFAULT_HOST,
+        help=f"Host to bind to (default: {DEFAULT_HOST})",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help=f"Port to bind to (default: {DEFAULT_PORT})",
+    )
+    parser.add_argument(
+        "--db",
+        type=str,
+        default=None,
+        help="Path to SQLite database file (default: in-memory)",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    run_server()
+    args = parse_args()
+    db_path = Path(args.db) if args.db else None
+    run_server(args.host, args.port, db_path)

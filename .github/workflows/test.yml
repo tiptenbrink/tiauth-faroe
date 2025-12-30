@@ -39,6 +39,12 @@ jobs:
         working-directory: ./python/sync-reference-server
         run: uv sync --frozen
 
+      # === UNIT TESTS (run before starting servers) ===
+      - name: Run Python sync-reference-server unit tests
+        working-directory: ./python/sync-reference-server
+        run: uv run pytest tests/test_tiauth.py -v
+
+      # === BUILD AND START SERVERS ===
       - name: Build Go dependencies
         working-directory: ./tiauth
         run: |
@@ -71,13 +77,14 @@ jobs:
       - name: Start Python user server
         working-directory: ./python/sync-reference-server
         run: |
-          nohup uv run main.py > ../../python_server.log 2>&1 &
+          # Server binds to 127.0.0.2:8079 by default (matching Go's FAROE_PRIVATE_PORT)
+          nohup uv run python main.py > ../../python_server.log 2>&1 &
           echo $! > ../../python_server.pid
 
           # Wait for Python server to be ready with health check
           echo "Waiting for Python user server to start..."
           for i in {1..30}; do
-            if curl -f http://localhost:8000/auth/prepare_user -X POST >/dev/null 2>&1; then
+            if curl -f http://127.0.0.2:8079/health >/dev/null 2>&1; then
               echo "Python server is ready!"
               break
             fi
@@ -88,13 +95,10 @@ jobs:
             sleep 1
           done
 
-      - name: Run Python user server library tests
-        working-directory: ./python/user-server
-        run: uv run pytest
-
-      - name: Run test suite
-        working-directory: ./python/sync-reference-server
-        run: uv run pytest
+      # === INTEGRATION TESTS (run after servers are started) ===
+      - name: Run client integration tests
+        working-directory: ./python/client
+        run: uv run pytest tests/test_integration.py -v
 
       - name: Output Go server log
         if: success() || failure()
