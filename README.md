@@ -3,76 +3,78 @@
 Monorepo for the Tiauth Faroe distribution and friends.
 
 Includes:
-- Tiauth Faroe server distribution (Go files in project root)
-- Python package to help develop user store in a Python project (`py-user-server`)
-- JS test suite that covers all server actions (`testapp`)
+- Tiauth Faroe server distribution (Go, in `tiauth/`)
+- Python client library (`python/client`)
+- Python user server library (`python/user-server`)
+- Python sync reference server (`python/sync-reference-server`)
 
 ## Tiauth Faroe server distribution
 
-The Tiauth Faroe server distribution is a _distribution_ of the [Faroe project](https://github.com/faroedev/faroe) with opionated defaults.
+The Tiauth Faroe server distribution is a _distribution_ of the [Faroe project](https://github.com/faroedev/faroe) with opinionated defaults.
 
 It has the following features:
-- E-mail sending support by connecting to an SMTP server (tested on Google SMTP proxy)
-  - Keeps single connection alive (might be expanded to a pool in the future) to minimize e-mail sending latency
-  - Connection is reestablished in case of failure
+- E-mail sending delegated to a Python backend service via HTTP
 - SQLite database for user storage
-- Configuration options that make it suitable for testing, such as:
-  - Interactive mode with a `reset` command to clear the storage
-  - Insecure mode to allow testing with a local SMTP server (see test suite section)
-- Parameters (such as SMTP port and other things) can be set with an .env file (by default it looks at a file exactly called `.env`, but other files can be passed)
+- Configuration via `.env` file (pass a custom path with `--env-file`)
+- Interactive mode (`--interactive`) with a `reset` command to clear the storage
+- A `/reset` HTTP endpoint that can be enabled with `--enable-reset`
+- Session expiration configuration (`FAROE_SESSION_EXPIRATION`)
+- CORS origin configuration (`FAROE_CORS_ALLOW_ORIGIN`)
+
+### Architecture
+
+The Go server communicates with a Python backend service via HTTP on `127.0.0.2:<private-port>` (default 8079). The Python backend handles:
+- User action invocations (create/update/delete user) via `POST /invoke`
+- Email sending and token storage via `POST /email`
+- Management commands via `POST /command`
+
+### Configuration
+
+Environment variables (set in `.env` file or OS environment):
+
+| Variable | Default | Description |
+|---|---|---|
+| `FAROE_DB_PATH` | `./db.sqlite` | Path to SQLite database |
+| `FAROE_PORT` | `3777` | HTTP server port |
+| `FAROE_PRIVATE_PORT` | `8079` | Port for Python backend communication |
+| `FAROE_SESSION_EXPIRATION` | `2160h` (90 days) | Session expiration duration |
+| `FAROE_CORS_ALLOW_ORIGIN` | (empty) | Allowed CORS origin |
+
+CLI flags:
+
+| Flag | Description |
+|---|---|
+| `--env-file` | Path to environment file (default: `.env`) |
+| `--interactive` | Enable interactive shell mode |
+| `--enable-reset` | Enable `/reset` endpoint to clear storage |
+| `--private-port` | Override private port from env file |
 
 ### Running
 
-It relies on the [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3) package for SQLite support. Therefore, running and building require enabling CGO:
+It relies on [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3) for SQLite support, which requires CGO:
 
 ```
-CGO_ENABLED=1 go run .
+cd tiauth
+CGO_ENABLED=1 go run . --env-file .env.test --enable-reset --interactive
 ```
 
-For easy cross-compilation we can use Zig (todo):
+### Building
 
 ```
-CGO_ENABLED=1 CC="zig cc" CXX="zig cc" go run .
+cd tiauth
+CGO_ENABLED=1 go build .
 ```
 
-TODO:
-- Do the channel errors all really work?
+## Python packages
 
-## Test suite
+### Client (`python/client`)
 
-TODO:
-- Add more negative tests, such as user_not_found being returned in case the counter is incorrect, etc.
+Client library for communicating with a Tiauth Faroe server. Provides both sync and async interfaces for action invocation.
 
-This distribution has been tested with a test suite that relies on the [`@faroe/client`](https://github.com/faroedev/js-client) JavaScript package. All major server actions work. Note that this distribution assumes that an _external_ user store is used.
+### User server (`python/user-server`)
 
-The test suite sets up a local SMTP server to test actions that require a verification code.
+Library to help implement a user store backend that the Tiauth Faroe server communicates with. Defines dataclasses for every operation (effects) and `AsyncServer`/`SyncServer` protocols, so you can customize the function signatures while using `handle_request_sync` or `handle_request_async` to process requests.
 
-The tests can be run with (from the `testapp` directory):
+### Sync reference server (`python/sync-reference-server`)
 
-```
-pnpm test
-```
-
-Seemingly, there are some [file handle leaks](https://github.com/nodemailer/smtp-server/issues/232) in the `smtp-server` package used to run the SMTP server. However, this might also be caused by the weird environment of starting it using Vitest's "globalSetup". If anyone has better suggestions of how to do this, PRs are welcome.
-
-Note that a few CLI options must be passed to the Faroe server in order for the test suite to work:
-
-```
-CGO_ENABLED=1 go run . --insecure --no-smtp-init --no-keep-alive
-```
-
-If you use the `.env.test` .env file and you also run it in interactive mode:
-
-```
-CGO_ENABLED=1 go run . --insecure --no-smtp-init --no-keep-alive --interactive --env-file .env.test
-```
-
-## Python user store lib (`py-user-server`)
-
-The project I'm using Faroe for is a Python web server. Hence, I created a package in the same vein as the official [go-user-server](https://github.com/faroedev/go-user-server) and [js-user-server](https://github.com/faroedev/js-user-server) packages. However, since in Python both async and sync server frameworks are very common, I tried to design it in a way that mostly abstracts over this.
-
-Instead of having a duplicate async and sync interface, we simply define a dataclass for every operation (the effects). Then the `AsyncServer` and `SyncServer` protocols can be implemented (similar to the `Server` class in `js-user-server`), with the only downside compared to e.g. `js-user-server` that you have to write a big if-elif chain to deal with all the possible effect cases. However, this means you can totally customize the function signatures however you like.
-
-Then, the `handle_request_sync` and `handle_request_async` can be called with the server implementations to actually retrieve the result.
-
-Just like in the `js-user-server` case, how these requests are actually received and sent is up to you. In the future I'll probably write a full reference implementation.
+A reference implementation of the sync user server interface.

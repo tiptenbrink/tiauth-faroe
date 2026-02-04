@@ -100,11 +100,8 @@ func ConfigFromEnv(envFile string) (Config, error) {
 	cfg := DefaultConfig()
 
 	envMap, err := LoadEnv(envFile)
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil {
 		return cfg, err
-	}
-	if envMap == nil {
-		envMap = make(map[string]string)
 	}
 
 	if v := GetEnv(envMap, "FAROE_DB_PATH"); v != "" {
