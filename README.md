@@ -65,6 +65,26 @@ cd tiauth
 CGO_ENABLED=1 go build .
 ```
 
+### Releasing a new version
+
+The Go module lives in the `tiauth/` subdirectory, so git tags must be prefixed with `tiauth/`:
+
+```
+git tag -a tiauth/v0.2.0 -m "description of changes"
+git push origin tiauth/v0.2.0
+```
+
+The Go module proxy (`proxy.golang.org`) picks up the tag automatically. No CI or publish step is needed.
+
+To update a downstream project (e.g. dodeka):
+
+```
+go get github.com/tiptenbrink/tiauth-faroe/tiauth@v0.2.0
+go mod tidy
+```
+
+`go mod tidy` removes checksums for old versions from `go.sum` that are no longer needed.
+
 ## Python packages
 
 ### Client (`python/client`)
