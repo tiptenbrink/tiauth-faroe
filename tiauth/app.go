@@ -21,7 +21,7 @@ type App struct {
 	emailSender   *backendEmailSender
 	backendClient *BackendClient
 	httpServer    *httpServer
-	shell         *interactiveShell
+	cmdServer     *commandServer
 }
 
 // Run starts the tiauth-faroe server with the given configuration.
@@ -82,24 +82,19 @@ func Run(cfg Config) error {
 	app.httpServer = &httpServer{
 		server:          faroeServer,
 		storage:         app.storage,
-		enableReset:     cfg.EnableReset,
 		corsAllowOrigin: cfg.CORSAllowOrigin,
 	}
 	app.httpServer.listen(cfg.Port)
 
-	// Start interactive shell if enabled
-	app.shell = newInteractiveShell(app.storage)
-	if cfg.EnableInteractive {
-		app.shell.listen()
-	}
+	// Start command server on 127.0.0.2
+	app.cmdServer = &commandServer{storage: app.storage}
+	app.cmdServer.listen(cfg.CommandPort)
 
-	// Wait for errors
-	for {
-		select {
-		case serverErr := <-app.httpServer.errChan:
-			return serverErr
-		case shellErr := <-app.shell.errChan:
-			return shellErr
-		}
+	// Wait for either server to error
+	select {
+	case err := <-app.httpServer.errChan:
+		return err
+	case err := <-app.cmdServer.errChan:
+		return err
 	}
 }

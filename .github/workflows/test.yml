@@ -63,7 +63,7 @@ jobs:
           # Wait for Go server to be ready with health check
           echo "Waiting for Go server to start..."
           for i in {1..30}; do
-            if curl -f http://localhost:3777/alive >/dev/null 2>&1; then
+            if curl -f http://localhost:12770/alive >/dev/null 2>&1; then
               echo "Go server is ready!"
               break
             fi
@@ -77,14 +77,14 @@ jobs:
       - name: Start Python user server
         working-directory: ./python/sync-reference-server
         run: |
-          # Server binds to 127.0.0.2:8079 by default (matching Go's FAROE_PRIVATE_PORT)
+          # Server binds to 127.0.0.2:12790 by default (matching Go's FAROE_PRIVATE_PORT)
           nohup uv run python main.py > ../../python_server.log 2>&1 &
           echo $! > ../../python_server.pid
 
           # Wait for Python server to be ready with health check
           echo "Waiting for Python user server to start..."
           for i in {1..30}; do
-            if curl -f http://127.0.0.2:8079/health >/dev/null 2>&1; then
+            if curl -f http://127.0.0.2:12790/health >/dev/null 2>&1; then
               echo "Python server is ready!"
               break
             fi

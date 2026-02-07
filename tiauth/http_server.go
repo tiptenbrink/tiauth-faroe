@@ -1,6 +1,7 @@
 package tiauth
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -13,7 +14,6 @@ import (
 type httpServer struct {
 	server          *faroe.ServerStruct
 	storage         *storageStruct
-	enableReset     bool
 	corsAllowOrigin string
 	errChan         chan error
 }
@@ -52,8 +52,6 @@ func (server *httpServer) handle(w http.ResponseWriter, r *http.Request) {
 		server.handleInvoke(w, r)
 	case r.Method == "GET" && r.URL.Path == "/alive":
 		server.handleAlive(w)
-	case server.enableReset && r.Method == "POST" && r.URL.Path == "/reset":
-		server.handleReset(w)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 	}
@@ -82,7 +80,67 @@ func (server *httpServer) handleAlive(w http.ResponseWriter) {
 	w.Write([]byte(`{"status":"alive"}`))
 }
 
-func (server *httpServer) handleReset(w http.ResponseWriter) {
-	log.Printf("[%s] request=%s\n", time.Now().Format("15:04:05.000"), "reset")
-	server.storage.Clear()
+// commandServer handles management commands on a separate 127.0.0.2 listener.
+type commandServer struct {
+	storage *storageStruct
+	errChan chan error
+}
+
+func (cs *commandServer) listen(port string) {
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer close(errChan)
+		addr := fmt.Sprintf("127.0.0.2:%s", port)
+		log.Printf("Command listener on %s", addr)
+		err := http.ListenAndServe(addr, http.HandlerFunc(cs.handle))
+		if err != nil {
+			errChan <- err
+		}
+	}()
+
+	cs.errChan = errChan
+}
+
+func (cs *commandServer) handle(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" && r.URL.Path == "/command" {
+		cs.handleCommand(w, r)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
+}
+
+func (cs *commandServer) handleCommand(w http.ResponseWriter, r *http.Request) {
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal(bodyBytes, &body); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error":"invalid json"}`))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	switch body.Command {
+	case "reset":
+		log.Printf("[%s] command=reset\n", time.Now().Format("15:04:05.000"))
+		err := cs.storage.Clear()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, `{"error":"%s"}`, err.Error())
+		} else {
+			w.Write([]byte(`{"success":true,"message":"Storage cleared"}`))
+		}
+	default:
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, `{"error":"unknown command: %s"}`, body.Command)
+	}
 }

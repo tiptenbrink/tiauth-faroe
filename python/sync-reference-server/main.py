@@ -14,7 +14,7 @@ from sync_reference_server.data.queries import SqliteSyncServer, clear_all_users
 
 # Default host/port matching what the Go tiauth server expects
 DEFAULT_HOST = "127.0.0.2"
-DEFAULT_PORT = 8079
+DEFAULT_PORT = 12790
 
 
 class TokenStore:

@@ -16,14 +16,13 @@ It has the following features:
 - E-mail sending delegated to a Python backend service via HTTP
 - SQLite database for user storage
 - Configuration via `.env` file (pass a custom path with `--env-file`)
-- Interactive mode (`--interactive`) with a `reset` command to clear the storage
-- A `/reset` HTTP endpoint that can be enabled with `--enable-reset`
+- A `/command` HTTP endpoint for management commands, enabled with `--enable-reset`
 - Session expiration configuration (`FAROE_SESSION_EXPIRATION`)
 - CORS origin configuration (`FAROE_CORS_ALLOW_ORIGIN`)
 
 ### Architecture
 
-The Go server communicates with a Python backend service via HTTP on `127.0.0.2:<private-port>` (default 8079). The Python backend handles:
+The Go server communicates with a Python backend service via HTTP on `127.0.0.2:<private-port>` (default 12790). The Python backend handles:
 - User action invocations (create/update/delete user) via `POST /invoke`
 - Email sending and token storage via `POST /email`
 - Management commands via `POST /command`
@@ -35,8 +34,8 @@ Environment variables (set in `.env` file or OS environment):
 | Variable | Default | Description |
 |---|---|---|
 | `FAROE_DB_PATH` | `./db.sqlite` | Path to SQLite database |
-| `FAROE_PORT` | `3777` | HTTP server port |
-| `FAROE_PRIVATE_PORT` | `8079` | Port for Python backend communication |
+| `FAROE_PORT` | `12770` | HTTP server port |
+| `FAROE_PRIVATE_PORT` | `12790` | Port for Python backend communication |
 | `FAROE_SESSION_EXPIRATION` | `2160h` (90 days) | Session expiration duration |
 | `FAROE_CORS_ALLOW_ORIGIN` | (empty) | Allowed CORS origin |
 
@@ -45,8 +44,7 @@ CLI flags:
 | Flag | Description |
 |---|---|
 | `--env-file` | Path to environment file (default: `.env`) |
-| `--interactive` | Enable interactive shell mode |
-| `--enable-reset` | Enable `/reset` endpoint to clear storage |
+| `--enable-reset` | Enable `/command` endpoint for management commands |
 | `--private-port` | Override private port from env file |
 
 ### Running
@@ -55,7 +53,7 @@ It relies on [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3) for SQLite 
 
 ```
 cd tiauth
-CGO_ENABLED=1 go run . --env-file .env.test --enable-reset --interactive
+CGO_ENABLED=1 go run . --env-file .env.test --enable-reset
 ```
 
 ### Building

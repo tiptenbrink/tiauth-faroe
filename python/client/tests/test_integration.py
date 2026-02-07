@@ -33,12 +33,12 @@ from tiauth_faroe.client import (
 
 
 # Default server URLs (can be overridden via environment variables)
-TIAUTH_SERVER_URL = os.environ.get("TIAUTH_SERVER_URL", "http://localhost:3777")
+TIAUTH_SERVER_URL = os.environ.get("TIAUTH_SERVER_URL", "http://localhost:12770")
 # Python user server URL for retrieving verification codes
-USER_SERVER_URL = os.environ.get("USER_SERVER_URL", "http://127.0.0.2:8079")
+USER_SERVER_URL = os.environ.get("USER_SERVER_URL", "http://127.0.0.2:12790")
 
 
-def is_server_running(host: str = "localhost", port: int = 3777) -> bool:
+def is_server_running(host: str = "localhost", port: int = 12770) -> bool:
     """Check if the Go server is reachable."""
     try:
         with socket.create_connection((host, port), timeout=1):

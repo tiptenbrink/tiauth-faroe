@@ -24,17 +24,17 @@ type Config struct {
 	// CORS allowed origin (specific origin like "https://example.com", empty to not set header)
 	CORSAllowOrigin string
 
-	// Behavior flags
-	EnableReset       bool // Enable /reset endpoint to clear storage
-	EnableInteractive bool // Enable interactive shell mode
+	// Port for command listener on 127.0.0.2 (management commands like reset)
+	CommandPort string
 }
 
 // DefaultConfig returns a Config with sensible defaults
 func DefaultConfig() Config {
 	return Config{
 		DBPath:            "./db.sqlite",
-		Port:              "3777",
-		PrivatePort:       8079,
+		Port:              "12770",
+		PrivatePort:       12790,
+		CommandPort:       "12771",
 		SessionExpiration: 90 * 24 * time.Hour, // 90 days
 	}
 }
@@ -116,6 +116,9 @@ func ConfigFromEnv(envFile string) (Config, error) {
 		}
 	}
 	cfg.CORSAllowOrigin = GetEnv(envMap, "FAROE_CORS_ALLOW_ORIGIN")
+	if v := GetEnv(envMap, "FAROE_COMMAND_PORT"); v != "" {
+		cfg.CommandPort = v
+	}
 
 	if v := GetEnv(envMap, "FAROE_SESSION_EXPIRATION"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
@@ -129,9 +132,8 @@ func ConfigFromEnv(envFile string) (Config, error) {
 // Flags holds the parsed command line flags
 type Flags struct {
 	EnvFile     string
-	Interactive bool
-	EnableReset bool
 	PrivatePort int
+	CommandPort string
 }
 
 // RegisterFlags registers all tiauth-faroe flags on the given FlagSet.
@@ -143,9 +145,8 @@ func RegisterFlags(fs *flag.FlagSet) *Flags {
 
 	f := &Flags{}
 	fs.StringVar(&f.EnvFile, "env-file", ".env", "Path to environment file")
-	fs.BoolVar(&f.Interactive, "interactive", false, "Run in interactive mode with stdin commands")
-	fs.BoolVar(&f.EnableReset, "enable-reset", false, "Enable request to /reset to clear storage")
 	fs.IntVar(&f.PrivatePort, "private-port", 0, "Port for Python backend communication (binds to 127.0.0.2)")
+	fs.StringVar(&f.CommandPort, "command-port", "", "Port for command listener on 127.0.0.2")
 
 	return f
 }
@@ -159,8 +160,9 @@ func ConfigFromFlags(f *Flags) (Config, error) {
 	}
 
 	// Apply flag overrides
-	cfg.EnableInteractive = f.Interactive
-	cfg.EnableReset = f.EnableReset
+	if f.CommandPort != "" {
+		cfg.CommandPort = f.CommandPort
+	}
 
 	if f.PrivatePort != 0 {
 		cfg.PrivatePort = f.PrivatePort
