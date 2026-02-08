@@ -15,8 +15,8 @@ type Config struct {
 	DBPath string
 	// Port to listen on
 	Port string
-	// Port for Python backend communication (binds to 127.0.0.2)
-	PrivatePort int
+	// Port where the user server listens (on 127.0.0.2)
+	UserServerPort int
 
 	// Session expiration duration (default: 90 days)
 	SessionExpiration time.Duration
@@ -33,7 +33,7 @@ func DefaultConfig() Config {
 	return Config{
 		DBPath:            "./db.sqlite",
 		Port:              "12770",
-		PrivatePort:       12790,
+		UserServerPort:       12790,
 		CommandPort:       "12771",
 		SessionExpiration: 90 * 24 * time.Hour, // 90 days
 	}
@@ -110,9 +110,9 @@ func ConfigFromEnv(envFile string) (Config, error) {
 	if v := GetEnv(envMap, "FAROE_PORT"); v != "" {
 		cfg.Port = v
 	}
-	if v := GetEnv(envMap, "FAROE_PRIVATE_PORT"); v != "" {
+	if v := GetEnv(envMap, "FAROE_USER_SERVER_PORT"); v != "" {
 		if port, err := strconv.Atoi(v); err == nil {
-			cfg.PrivatePort = port
+			cfg.UserServerPort = port
 		}
 	}
 	cfg.CORSAllowOrigin = GetEnv(envMap, "FAROE_CORS_ALLOW_ORIGIN")
@@ -132,7 +132,7 @@ func ConfigFromEnv(envFile string) (Config, error) {
 // Flags holds the parsed command line flags
 type Flags struct {
 	EnvFile     string
-	PrivatePort int
+	UserServerPort int
 	CommandPort string
 }
 
@@ -145,7 +145,7 @@ func RegisterFlags(fs *flag.FlagSet) *Flags {
 
 	f := &Flags{}
 	fs.StringVar(&f.EnvFile, "env-file", ".env", "Path to environment file")
-	fs.IntVar(&f.PrivatePort, "private-port", 0, "Port for Python backend communication (binds to 127.0.0.2)")
+	fs.IntVar(&f.UserServerPort, "user-server-port", 0, "Port where the user server listens (on 127.0.0.2)")
 	fs.StringVar(&f.CommandPort, "command-port", "", "Port for command listener on 127.0.0.2")
 
 	return f
@@ -164,8 +164,8 @@ func ConfigFromFlags(f *Flags) (Config, error) {
 		cfg.CommandPort = f.CommandPort
 	}
 
-	if f.PrivatePort != 0 {
-		cfg.PrivatePort = f.PrivatePort
+	if f.UserServerPort != 0 {
+		cfg.UserServerPort = f.UserServerPort
 	}
 
 	return cfg, nil

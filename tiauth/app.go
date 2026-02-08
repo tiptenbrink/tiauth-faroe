@@ -40,7 +40,7 @@ func Run(cfg Config) error {
 	defer app.storage.Close()
 
 	// Create backend HTTP client for Python communication
-	app.backendClient = NewBackendClient(cfg.PrivatePort)
+	app.backendClient = NewBackendClient(cfg.UserServerPort)
 
 	// Initialize user action client using backend HTTP
 	userServerClient := faroe.NewUserServerClient(app.backendClient)

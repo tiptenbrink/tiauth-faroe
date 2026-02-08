@@ -77,7 +77,7 @@ jobs:
       - name: Start Python user server
         working-directory: ./python/sync-reference-server
         run: |
-          # Server binds to 127.0.0.2:12790 by default (matching Go's FAROE_PRIVATE_PORT)
+          # Server binds to 127.0.0.2:12790 by default (matching Go's FAROE_USER_SERVER_PORT)
           nohup uv run python main.py > ../../python_server.log 2>&1 &
           echo $! > ../../python_server.pid
 
