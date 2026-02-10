@@ -80,9 +80,10 @@ func (server *httpServer) handleAlive(w http.ResponseWriter) {
 	w.Write([]byte(`{"status":"alive"}`))
 }
 
-// commandServer handles management commands on a separate 127.0.0.2 listener.
+// commandServer handles management commands on a separate private listener.
 type commandServer struct {
 	storage *storageStruct
+	host    string
 	errChan chan error
 }
 
@@ -91,7 +92,7 @@ func (cs *commandServer) listen(port string) {
 
 	go func() {
 		defer close(errChan)
-		addr := fmt.Sprintf("127.0.0.2:%s", port)
+		addr := fmt.Sprintf("%s:%s", cs.host, port)
 		log.Printf("Command listener on %s", addr)
 		err := http.ListenAndServe(addr, http.HandlerFunc(cs.handle))
 		if err != nil {

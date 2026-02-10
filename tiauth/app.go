@@ -40,7 +40,7 @@ func Run(cfg Config) error {
 	defer app.storage.Close()
 
 	// Create backend HTTP client for Python communication
-	app.backendClient = NewBackendClient(cfg.UserServerPort)
+	app.backendClient = NewBackendClient(cfg.PrivateHost, cfg.UserServerPort)
 
 	// Initialize user action client using backend HTTP
 	userServerClient := faroe.NewUserServerClient(app.backendClient)
@@ -86,8 +86,8 @@ func Run(cfg Config) error {
 	}
 	app.httpServer.listen(cfg.Port)
 
-	// Start command server on 127.0.0.2
-	app.cmdServer = &commandServer{storage: app.storage}
+	// Start command server on private host
+	app.cmdServer = &commandServer{storage: app.storage, host: cfg.PrivateHost}
 	app.cmdServer.listen(cfg.CommandPort)
 
 	// Wait for either server to error

@@ -8,10 +8,6 @@ import (
 	"net/http"
 )
 
-// PrivateHost is the loopback address used for the private server.
-// Uses 127.0.0.2 for isolation from the main loopback (127.0.0.1).
-const PrivateHost = "127.0.0.2"
-
 // BackendClient provides HTTP communication with the Python backend's private server.
 type BackendClient struct {
 	baseURL string
@@ -19,9 +15,9 @@ type BackendClient struct {
 }
 
 // NewBackendClient creates a new HTTP client for the Python backend.
-func NewBackendClient(port int) *BackendClient {
+func NewBackendClient(host string, port int) *BackendClient {
 	return &BackendClient{
-		baseURL: fmt.Sprintf("http://%s:%d", PrivateHost, port),
+		baseURL: fmt.Sprintf("http://%s:%d", host, port),
 		client:  &http.Client{},
 	}
 }

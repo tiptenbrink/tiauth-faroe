@@ -24,8 +24,13 @@ type Config struct {
 	// CORS allowed origin (specific origin like "https://example.com", empty to not set header)
 	CORSAllowOrigin string
 
-	// Port for command listener on 127.0.0.2 (management commands like reset)
+	// Port for command listener (management commands like reset)
 	CommandPort string
+
+	// Host for private servers (command listener, backend client).
+	// Defaults to 127.0.0.2 for isolation; set to 127.0.0.1 on macOS
+	// where 127.0.0.2 is not enabled by default.
+	PrivateHost string
 }
 
 // DefaultConfig returns a Config with sensible defaults
@@ -33,8 +38,9 @@ func DefaultConfig() Config {
 	return Config{
 		DBPath:            "./db.sqlite",
 		Port:              "12770",
-		UserServerPort:       12790,
+		UserServerPort:    12790,
 		CommandPort:       "12771",
+		PrivateHost:       "127.0.0.2",
 		SessionExpiration: 90 * 24 * time.Hour, // 90 days
 	}
 }
@@ -119,6 +125,9 @@ func ConfigFromEnv(envFile string) (Config, error) {
 	if v := GetEnv(envMap, "FAROE_COMMAND_PORT"); v != "" {
 		cfg.CommandPort = v
 	}
+	if v := GetEnv(envMap, "FAROE_PRIVATE_HOST"); v != "" {
+		cfg.PrivateHost = v
+	}
 
 	if v := GetEnv(envMap, "FAROE_SESSION_EXPIRATION"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
@@ -131,9 +140,10 @@ func ConfigFromEnv(envFile string) (Config, error) {
 
 // Flags holds the parsed command line flags
 type Flags struct {
-	EnvFile     string
+	EnvFile        string
 	UserServerPort int
-	CommandPort string
+	CommandPort    string
+	PrivateHost    string
 }
 
 // RegisterFlags registers all tiauth-faroe flags on the given FlagSet.
@@ -145,8 +155,9 @@ func RegisterFlags(fs *flag.FlagSet) *Flags {
 
 	f := &Flags{}
 	fs.StringVar(&f.EnvFile, "env-file", ".env", "Path to environment file")
-	fs.IntVar(&f.UserServerPort, "user-server-port", 0, "Port where the user server listens (on 127.0.0.2)")
-	fs.StringVar(&f.CommandPort, "command-port", "", "Port for command listener on 127.0.0.2")
+	fs.IntVar(&f.UserServerPort, "user-server-port", 0, "Port where the user server listens")
+	fs.StringVar(&f.CommandPort, "command-port", "", "Port for command listener")
+	fs.StringVar(&f.PrivateHost, "private-host", "", "Host for private servers (default 127.0.0.2)")
 
 	return f
 }
@@ -166,6 +177,9 @@ func ConfigFromFlags(f *Flags) (Config, error) {
 
 	if f.UserServerPort != 0 {
 		cfg.UserServerPort = f.UserServerPort
+	}
+	if f.PrivateHost != "" {
+		cfg.PrivateHost = f.PrivateHost
 	}
 
 	return cfg, nil
