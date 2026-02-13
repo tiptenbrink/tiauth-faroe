@@ -3,7 +3,7 @@ import json
 import base64
 import binascii
 from dataclasses import dataclass
-from typing import Generator, Union, Protocol, Dict, Any, TypeVar
+from typing import Generator, Union, Protocol, Dict, Any
 
 
 @dataclass

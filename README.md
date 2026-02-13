@@ -97,4 +97,4 @@ Library to help implement a user store backend that the Tiauth Faroe server comm
 
 ### Sync reference server (`python/sync-reference-server`)
 
-A reference implementation of the sync user server interface.
+A reference implementation of the sync user server interface. This is a local development/testing tool and is not published as a package.

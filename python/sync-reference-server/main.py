@@ -107,7 +107,7 @@ class JSONRequestHandler(BaseHTTPRequestHandler):
         raw_data = self.rfile.read(content_length)
         json_data = json.loads(raw_data.decode("utf-8"))
 
-        result = handle_request_sync(json_data, self.server.sync_server)  # type: ignore
+        result = handle_request_sync(json_data, self.server.sync_server)
         response_data = result.response_json.encode("utf-8")
 
         self.send_response(200)
@@ -117,7 +117,7 @@ class JSONRequestHandler(BaseHTTPRequestHandler):
         _ = self.wfile.write(response_data)
 
     def handle_clear_tables(self):
-        clear_all_users(self.server.sync_server.engine)  # type: ignore
+        clear_all_users(self.server.sync_server.engine)
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -215,7 +215,9 @@ class JSONRequestHandler(BaseHTTPRequestHandler):
         _ = self.wfile.write(json_response)
 
 
-def run_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, db_path: Path | None = None):
+def run_server(
+    host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, db_path: Path | None = None
+):
     engine = init_sqlite_engine(Path(db_path) if db_path else None)
 
     metadata.create_all(engine)

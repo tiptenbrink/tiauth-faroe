@@ -23,7 +23,6 @@ import requests
 from tiauth_faroe.client import (
     SyncClient,
     ActionErrorResult,
-    ActionSuccessResult,
     CreateSignupActionSuccessResult,
     CompleteSignupActionSuccessResult,
     CreateSigninActionSuccessResult,
@@ -259,9 +258,7 @@ class TestSignupFlow:
         # Complete signup
         result = client.complete_signup(signup_token)
         if isinstance(result, ActionErrorResult):
-            pytest.skip(
-                f"Could not complete signup: {result.error_code}"
-            )
+            pytest.skip(f"Could not complete signup: {result.error_code}")
         return result
 
 
@@ -306,9 +303,7 @@ class TestSigninFlow:
 
         # First, complete a full signup
         signup_flow = TestSignupFlow()
-        signup_result = signup_flow._complete_signup_flow(
-            client, token_helper, unique_email, password
-        )
+        signup_flow._complete_signup_flow(client, token_helper, unique_email, password)
 
         # Now test signin
         signin_result = client.create_signin(unique_email)
@@ -358,9 +353,7 @@ class TestSessionFlow:
 class TestServerHealth:
     """Basic server health/connectivity tests."""
 
-    def test_server_responds(
-        self, client: HttpSyncClient, token_helper: TokenHelper
-    ):
+    def test_server_responds(self, client: HttpSyncClient, token_helper: TokenHelper):
         """Test that the server responds to requests."""
         # Generate unique email to avoid conflicts with other tests
         random_suffix = secrets.token_hex(8)
@@ -369,6 +362,4 @@ class TestServerHealth:
         result = client.create_signup(email)
 
         # Either success or a known error means server works
-        assert isinstance(
-            result, (CreateSignupActionSuccessResult, ActionErrorResult)
-        )
+        assert isinstance(result, (CreateSignupActionSuccessResult, ActionErrorResult))
