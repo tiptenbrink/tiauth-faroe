@@ -7,6 +7,8 @@ requires-python = ">=3.10"
 authors = [
     { name = "Tip ten Brink", email = "75669206+tiptenbrink@users.noreply.github.com" }
 ]
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 
 [tool.uv.build-backend]
 module-name = "tiauth_faroe.user_server"

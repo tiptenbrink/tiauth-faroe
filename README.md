@@ -1,5 +1,7 @@
 ## WIP: Do not yet run in production!
 
+> **Disclaimer:** This is an unofficial, independent project. It is not affiliated with, endorsed by, or supported by the [Faroe project](https://github.com/faroedev/faroe) or its authors in any way. The Go server distribution is derived from Faroe's MIT-licensed source code (see [NOTICE](NOTICE)).
+
 Monorepo for the Tiauth Faroe distribution and friends.
 
 Includes:
