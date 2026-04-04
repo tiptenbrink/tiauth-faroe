@@ -10,12 +10,16 @@ dependencies = [
     "sqlalchemy>=2.0.45"
 ]
 
+[tool.uv]
+# Only allow packages uploaded at least 3 days ago to guard against supply chain attacks
+exclude-newer = "3 days"
+
 [tool.uv.sources]
 "tiauth_faroe.user_server" = { path = "../user-server" }
 "tiauth_faroe.client" = { path = "../client" }
 
 [build-system]
-requires = ["uv_build>=0.9,<0.11"]
+requires = ["uv_build>=0.9,<0.12"]
 build-backend = "uv_build"
 
 
@@ -23,5 +27,5 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9",
     "ruff>=0.15.0",
-    "ty>=0.0.17",
+    "ty>=0.0.27",
 ]

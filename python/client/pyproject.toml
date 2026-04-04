@@ -11,11 +11,15 @@ authors = [
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 
+[tool.uv]
+# Only allow packages uploaded at least 3 days ago to guard against supply chain attacks
+exclude-newer = "3 days"
+
 [tool.uv.build-backend]
 module-name = "tiauth_faroe.client"
 
 [build-system]
-requires = ["uv_build>=0.9,<0.11"]
+requires = ["uv_build>=0.9,<0.12"]
 build-backend = "uv_build"
 
 [dependency-groups]
@@ -23,5 +27,5 @@ dev = [
     "pytest>=9",
     "requests>=2",
     "ruff>=0.15.0",
-    "ty>=0.0.17",
+    "ty>=0.0.27",
 ]
