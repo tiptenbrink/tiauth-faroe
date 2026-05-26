@@ -1,6 +1,6 @@
 module github.com/tiptenbrink/tiauth-faroe/tiauth
 
-go 1.26.1
+go 1.26.3
 
 require (
 	github.com/faroedev/faroe v0.5.1
