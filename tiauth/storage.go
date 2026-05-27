@@ -2,11 +2,13 @@ package tiauth
 
 import (
 	"database/sql"
+	"errors"
 	"log"
 	"time"
 
 	"github.com/faroedev/faroe"
-	"github.com/mattn/go-sqlite3"
+	"modernc.org/sqlite"
+	lib "modernc.org/sqlite/lib"
 )
 
 type storageStruct struct {
@@ -42,7 +44,7 @@ func (storage *storageStruct) Close() {
 }
 
 func newStorage(fileName string) *storageStruct {
-	db, err := sql.Open("sqlite3", fileName)
+	db, err := sql.Open("sqlite", fileName)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -136,10 +138,9 @@ func (storage *storageStruct) Get(key string) ([]byte, int32, error) {
 func (storage *storageStruct) Add(key string, value []byte, expiresAt time.Time) error {
 	expirationStr := expiresAt.Format(time.RFC3339)
 	_, err := storage.addStmt.Exec(key, value, expirationStr)
-	if sqliteErr, ok := err.(sqlite3.Error); ok {
-		if sqliteErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey {
-			return faroe.ErrStorageEntryAlreadyExists
-		}
+	var sqliteErr *sqlite.Error
+	if errors.As(err, &sqliteErr) && sqliteErr.Code() == lib.SQLITE_CONSTRAINT_PRIMARYKEY {
+		return faroe.ErrStorageEntryAlreadyExists
 	}
 	return err
 }

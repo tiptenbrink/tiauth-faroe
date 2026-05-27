@@ -53,18 +53,18 @@ CLI flags:
 
 ### Running
 
-It relies on [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3) for SQLite support, which requires CGO:
+It relies on [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite) for SQLite support, which does not require CGO:
 
 ```
 cd tiauth
-CGO_ENABLED=1 go run . --env-file .env.test
+go run . --env-file .env.test
 ```
 
 ### Building
 
 ```
 cd tiauth
-CGO_ENABLED=1 go build .
+go build -trimpath -ldflags="-s -w" .
 ```
 
 ### Releasing a new version
