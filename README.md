@@ -64,7 +64,7 @@ go run . --env-file .env.test
 
 ```
 cd tiauth
-go build -trimpath -ldflags="-s -w" .
+go build .
 ```
 
 ### Releasing a new version

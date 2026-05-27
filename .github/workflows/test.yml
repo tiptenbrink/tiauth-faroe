@@ -52,7 +52,7 @@ jobs:
 
       - name: Build Go
         working-directory: ./tiauth
-        run: CGO_ENABLED=1 go build -o tiauth ./cmd
+        run: CGO_ENABLED=0 go build -o tiauth ./cmd
 
       - name: Start Go auth server
         working-directory: ./tiauth
