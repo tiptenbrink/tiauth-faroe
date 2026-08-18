@@ -1,0 +1,38 @@
+version: 2
+
+updates:
+  # GitHub Actions — keep the SHA pins current (required by the repo's
+  # sha_pinning_required policy, so these can only be bumped deliberately).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "gomod"
+    directory: "/tiauth"
+    schedule:
+      interval: "monthly"
+    groups:
+      go:
+        patterns:
+          - "*"
+    ignore:
+      # Held back: v0.5.x changed json.NewObjectBuilder's signature, which
+      # breaks faroe v0.5.1 at compile time. Unpin once faroe updates.
+      - dependency-name: "github.com/faroedev/go-json"
+
+  - package-ecosystem: "uv"
+    directories:
+      - "/python/client"
+      - "/python/user-server"
+      - "/python/sync-reference-server"
+    schedule:
+      interval: "monthly"
+    groups:
+      python:
+        patterns:
+          - "*"
