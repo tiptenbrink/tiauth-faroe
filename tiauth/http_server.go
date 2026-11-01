@@ -11,6 +11,24 @@ import (
 	"github.com/faroedev/faroe"
 )
 
+// maxRequestBodyBytes caps the body of a request to either listener. Action
+// invocations are small JSON objects, so 1 MiB leaves ample room.
+const maxRequestBodyBytes = 1 << 20
+
+// newHardenedServer returns an http.Server with timeouts, so that slow or idle
+// clients cannot hold connections open indefinitely.
+func newHardenedServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    64 << 10,
+	}
+}
+
 type httpServer struct {
 	server          *faroe.ServerStruct
 	storage         *storageStruct
@@ -24,7 +42,7 @@ func (server *httpServer) listen(port string) {
 	go func() {
 		defer close(errChan)
 		log.Printf("Listening on port %s...", port)
-		err := http.ListenAndServe(fmt.Sprintf(":%s", port), http.HandlerFunc(server.handle))
+		err := newHardenedServer(fmt.Sprintf(":%s", port), http.HandlerFunc(server.handle)).ListenAndServe()
 		if err != nil {
 			errChan <- err
 		}
@@ -58,7 +76,7 @@ func (server *httpServer) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (server *httpServer) handleInvoke(w http.ResponseWriter, r *http.Request) {
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxRequestBodyBytes))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -94,7 +112,7 @@ func (cs *commandServer) listen(port string) {
 		defer close(errChan)
 		addr := fmt.Sprintf("%s:%s", cs.host, port)
 		log.Printf("Command listener on %s", addr)
-		err := http.ListenAndServe(addr, http.HandlerFunc(cs.handle))
+		err := newHardenedServer(addr, http.HandlerFunc(cs.handle)).ListenAndServe()
 		if err != nil {
 			errChan <- err
 		}
@@ -112,7 +130,7 @@ func (cs *commandServer) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cs *commandServer) handleCommand(w http.ResponseWriter, r *http.Request) {
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxRequestBodyBytes))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return

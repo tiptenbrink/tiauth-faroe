@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // BackendClient provides HTTP communication with the Python backend's private server.
@@ -18,7 +19,9 @@ type BackendClient struct {
 func NewBackendClient(host string, port int) *BackendClient {
 	return &BackendClient{
 		baseURL: fmt.Sprintf("http://%s:%d", host, port),
-		client:  &http.Client{},
+		// faroe calls the backend while handling a request, so a hung backend
+		// must not hang the request with it.
+		client: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
