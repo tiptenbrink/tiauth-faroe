@@ -15,9 +15,9 @@ import (
 // invocations are small JSON objects, so 1 MiB leaves ample room.
 const maxRequestBodyBytes = 1 << 20
 
-// newHardenedServer returns an http.Server with timeouts, so that slow or idle
+// newServerWithTimeouts returns an http.Server with timeouts, so that slow or idle
 // clients cannot hold connections open indefinitely.
-func newHardenedServer(addr string, handler http.Handler) *http.Server {
+func newServerWithTimeouts(addr string, handler http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              addr,
 		Handler:           handler,
@@ -42,7 +42,7 @@ func (server *httpServer) listen(port string) {
 	go func() {
 		defer close(errChan)
 		log.Printf("Listening on port %s...", port)
-		err := newHardenedServer(fmt.Sprintf(":%s", port), http.HandlerFunc(server.handle)).ListenAndServe()
+		err := newServerWithTimeouts(fmt.Sprintf(":%s", port), http.HandlerFunc(server.handle)).ListenAndServe()
 		if err != nil {
 			errChan <- err
 		}
@@ -112,7 +112,7 @@ func (cs *commandServer) listen(port string) {
 		defer close(errChan)
 		addr := fmt.Sprintf("%s:%s", cs.host, port)
 		log.Printf("Command listener on %s", addr)
-		err := newHardenedServer(addr, http.HandlerFunc(cs.handle)).ListenAndServe()
+		err := newServerWithTimeouts(addr, http.HandlerFunc(cs.handle)).ListenAndServe()
 		if err != nil {
 			errChan <- err
 		}
